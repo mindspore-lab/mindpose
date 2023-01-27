@@ -127,3 +127,23 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Vscode
+.vscode/
+
+# Mindspore related
+akg_kernel_meta/
+akg_build_tmp.key
+dsa_transfrom.log
+scalar_transform.log
+analyze_fail.dat
+
+# Checkpoints
+*.ckpt
+*.meta
+
+# Summary file
+events.out*
+
+# Evaluation Result
+result_keypoint.json
