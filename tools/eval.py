@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+"""Perform evaluation on the validation dataset
+"""
 import os
 import sys
 
@@ -11,8 +14,7 @@ from argparse import Namespace
 
 import mindspore as ms
 from common.config import parse_args
-from mindpose.data.dataset import create_dataset
-from mindpose.data.pipeline import create_pipeline
+from mindpose.data import create_dataset, create_pipeline
 from mindpose.engine.evaluators import create_evaluator
 from mindpose.engine.inferencer import create_inferencer
 from mindpose.models import create_decoder, create_eval_network, create_network
@@ -31,7 +33,7 @@ def eval(args: Namespace) -> None:
         use_gt_bbox_for_val=args.val_use_gt_bbox,
         detection_file=args.val_detection_result,
         num_workers=args.num_parallel_workers,
-        config=args.dataset_args,
+        config=args.dataset_detail,
     )
 
     val_dataset = create_pipeline(
@@ -40,8 +42,9 @@ def eval(args: Namespace) -> None:
         method=args.pipeline_method,
         batch_size=args.batch_size,
         is_train=False,
-        num_joints=args.num_joints,
-        config=args.dataset_args,
+        normalize_mean=args.normalize_mean,
+        normalize_std=args.normalize_std,
+        config=args.dataset_detail,
     )
 
     # create network
@@ -56,7 +59,7 @@ def eval(args: Namespace) -> None:
     ms.load_checkpoint(args.ckpt, net, strict_load=False)
 
     # add decoder head
-    decoder = create_decoder(args.decoder)
+    decoder = create_decoder(args.decoder_name)
     net = create_eval_network(net, decoder)
 
     # create inferencer

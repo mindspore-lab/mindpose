@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+"""Visualize the heatmap of the ground truth on the augmented training images
+"""
 import os
 import sys
 
@@ -13,8 +16,7 @@ import cv2
 import mindspore as ms
 import numpy as np
 from common.config import parse_args
-from mindpose.data.dataset import create_dataset
-from mindpose.data.pipeline import create_pipeline
+from mindpose.data import create_dataset, create_pipeline
 
 ms.set_seed(1)
 
@@ -27,7 +29,7 @@ def visual_gt_heatmap(args: Namespace) -> None:
         dataset_format=args.dataset_format,
         is_train=True,
         num_workers=args.num_parallel_workers,
-        config=args.dataset_args,
+        config=args.dataset_detail,
     )
 
     # create pipeline
@@ -37,14 +39,15 @@ def visual_gt_heatmap(args: Namespace) -> None:
         method=args.pipeline_method,
         batch_size=args.batch_size,
         is_train=True,
-        num_joints=args.num_joints,
         normalize=False,
-        config=args.dataset_args,
+        hwc_to_chw=False,
+        config=args.dataset_detail,
     )
 
     for i, data in enumerate(
         train_dataset.create_dict_iterator(num_epochs=1, output_numpy=True)
     ):
+        # visualize the first 10 images only
         if i > 10:
             break
 
@@ -66,7 +69,10 @@ def visual_gt_heatmap(args: Namespace) -> None:
 
 
 def main():
-    args = parse_args(description="Visualize the GT of heatmap method")
+    args = parse_args(
+        description="Visualize the heatmap of the ground truth "
+        "on the augmented training images."
+    )
     visual_gt_heatmap(args)
 
 

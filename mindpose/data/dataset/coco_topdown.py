@@ -5,19 +5,47 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 from xtcocotools.coco import COCO
 
+from ...register import register
+
 from .topdown import TopDownDataset
 
 
+@register("dataset", extra_name="coco_topdown")
 class COCOTopDownDataset(TopDownDataset):
-    """Create an iterator for COCO TopDown dataset."""
+    """Create an iterator for TopDown dataset based COCO annotation format
+    return the tuple with image, center, scale, keypoints, rotation, target, target_weight for training,
+    return the tuple with image, center, scale, rotation, image_file, box, box_id, box_score for evaluation
+
+    Args:
+        image_root: The path of the directory storing images
+        annotation_file: The path of the annotation file
+        is_train: Wether this dataset is used for training/testing
+        use_gt_bbox_for_val: Use GT bbox instead of detection result during evaluation. Default: False
+        detection_file: Path of the detection result. Defaul: None
+        config: Method-specific configuration.
+
+    Returns:
+        image: Encoded data for image file
+        center: Center (x, y) of the bounding box
+        scale: Scale of the bounding box
+        keypoints: Keypoints in (x, y, visibility)
+        rotation: Rotatated degree
+        target: A placeholder for later pipline using
+        target_weight: A placeholder of later pipline using
+        image_file: Path of the image file
+        bbox: Bounding box coordinate (x, y, w, h)
+        bbox_id: Bounding box id for each single image
+        bbox_score: Bounding box score, 1 for ground truth
+    """
 
     def load_dataset_cfg(self) -> Dict[str, Any]:
         """Loading the annoation info from the config file"""
         dataset_cfg = dict()
-        dataset_cfg["image_size"] = self.config.get("image_size", [192, 256])
-        dataset_cfg["det_bbox_thr"] = self.config.get("det_bbox_thr", 0)
-        dataset_cfg["pixel_std"] = float(self.config.get("pixel_std", 200.0))
-        dataset_cfg["scale_padding"] = self.config.get("scale_padding", 1.25)
+        dataset_cfg["image_size"] = np.array(self.config["image_size"])
+        assert len(dataset_cfg["image_size"]) == 2
+        dataset_cfg["det_bbox_thr"] = float(self.config["det_bbox_thr"])
+        dataset_cfg["pixel_std"] = float(self.config["pixel_std"])
+        dataset_cfg["scale_padding"] = float(self.config["scale_padding"])
         return dataset_cfg
 
     def load_dataset(self) -> List[Dict[str, Any]]:
@@ -76,7 +104,9 @@ class COCOTopDownDataset(TopDownDataset):
             bbox_id += 1
         return kpt_db
 
-    def _load_coco_keypoint_annotations_per_img(self, img_id) -> List[Dict[str, Any]]:
+    def _load_coco_keypoint_annotations_per_img(
+        self, img_id: int
+    ) -> List[Dict[str, Any]]:
         img_ann = self.coco.loadImgs(img_id)[0]
         img_width = img_ann["width"]
         img_height = img_ann["height"]
@@ -123,16 +153,6 @@ class COCOTopDownDataset(TopDownDataset):
     def _get_mapping_id_name(
         imgs: Dict[int, str]
     ) -> Tuple[Dict[int, str], Dict[str, int]]:
-        """
-        Args:
-            imgs (dict): dict of image info.
-
-        Returns:
-            tuple: Image name & id mapping dicts.
-
-            - id2name (dict): Mapping image id to name.
-            - name2id (dict): Mapping image name to id.
-        """
         id2name = {}
         name2id = {}
         for image_id, image in imgs.items():

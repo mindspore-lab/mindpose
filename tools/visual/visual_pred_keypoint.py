@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+"""Visualize the prediciton of keypoint on the validation images
+"""
 import os
 import sys
 
@@ -12,8 +15,7 @@ from argparse import Namespace
 import cv2
 import mindspore as ms
 from common.config import parse_args
-from mindpose.data.dataset import create_dataset
-from mindpose.data.pipeline import create_pipeline
+from mindpose.data import create_dataset, create_pipeline
 from mindpose.models import create_decoder, create_eval_network, create_network
 
 
@@ -27,7 +29,7 @@ def visual_pred_keypoint(args: Namespace) -> None:
         use_gt_bbox_for_val=args.val_use_gt_bbox,
         detection_file=args.val_detection_result,
         num_workers=args.num_parallel_workers,
-        config=args.dataset_args,
+        config=args.dataset_detail,
     )
 
     # create pipeline
@@ -37,8 +39,9 @@ def visual_pred_keypoint(args: Namespace) -> None:
         method=args.pipeline_method,
         batch_size=args.batch_size,
         is_train=False,
-        num_joints=args.num_joints,
-        config=args.dataset_args,
+        normalize_mean=args.normalize_mean,
+        normalize_std=args.normalize_std,
+        config=args.dataset_detail,
     )
 
     # create network
@@ -53,7 +56,7 @@ def visual_pred_keypoint(args: Namespace) -> None:
     ms.load_checkpoint(args.ckpt, net, strict_load=False)
 
     # create evaluation network
-    decoder = create_decoder(args.decoder, to_original=True)
+    decoder = create_decoder(args.decoder_name, to_original=True)
     net = create_eval_network(net, decoder, output_raw=False)
 
     for i, data in enumerate(dataset.create_dict_iterator(num_epochs=1)):
@@ -83,7 +86,7 @@ def visual_pred_keypoint(args: Namespace) -> None:
 
 def main():
     args = parse_args(
-        description="Visualize the keypoint prediction of heatmap method in whole image",
+        description="Visualize the prediciton of keypoint on the validation images",
         need_ckpt=True,
     )
     visual_pred_keypoint(args)

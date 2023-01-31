@@ -59,8 +59,8 @@ class EvalCallback(Callback):
 
         self.save_best = save_best
         self.save_last = save_last
-        self.best_ckpt_path = best_ckpt_path
-        self.last_ckpt_path = last_ckpt_path
+        self.best_ckpt_path = os.path.abspath(best_ckpt_path)
+        self.last_ckpt_path = os.path.abspath(last_ckpt_path)
         self.target_metric_name = target_metric_name
         self.summary_dir = summary_dir
         self.rank_id = rank_id if rank_id is not None else 0
@@ -197,18 +197,18 @@ class EvalCallback(Callback):
             self.best_epoch = cur_epoch
             ms.save_checkpoint(self.net_to_save, self.best_ckpt_path)
             logging.info(
-                "Best checkpoint is updated. "
-                f"Best result is {self.best_result:.3f} at {self.best_epoch} epoch."
+                f"Best result is {self.best_result:.3f} at {self.best_epoch} epoch. "
+                f"Best checkpoint is saved at {self.best_ckpt_path}"
             )
         else:
             logging.info(
-                "Best checkpoint is unchanged. "
-                f"Best result is {self.best_result:.3f} at {self.best_epoch} epoch."
+                f"Best result is {self.best_result:.3f} at {self.best_epoch} epoch. "
+                "Best checkpoint is unchanged."
             )
 
     def _save_last_model(self) -> None:
         ms.save_checkpoint(self.net_to_save, self.last_ckpt_path)
-        logging.info("Last checkpoint is updated. ")
+        logging.info(f"Last checkpoint is saved at {self.last_ckpt_path}")
 
     def _get_loss(self, cb_params: Dict[str, Any]) -> Tensor:
         """

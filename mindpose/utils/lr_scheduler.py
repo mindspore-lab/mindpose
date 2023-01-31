@@ -2,6 +2,7 @@ from typing import Any, List, Union
 
 import mindspore as ms
 import mindspore.nn as nn
+import mindspore.ops as ops
 from mindspore import Tensor
 from mindspore.nn.learning_rate_schedule import LearningRateSchedule
 
@@ -41,6 +42,8 @@ class WarmupCosineDecayLR(LearningRateSchedule):
             self.warmup_lr = nn.WarmUpLR(max_lr, self.warmup_steps)
         self.cosine_decay_lr = nn.CosineDecayLR(min_lr, max_lr, self.decay_steps)
 
+        self.zero = Tensor(0.0, dtype=ms.float32)
+
     def step_lr(self, global_step: Tensor) -> Tensor:
         if self.warmup_steps > 0:
             if global_step > self.warmup_steps:
@@ -49,6 +52,9 @@ class WarmupCosineDecayLR(LearningRateSchedule):
                 lr = self.warmup_lr(global_step)
         else:
             lr = self.cosine_decay_lr(global_step)
+
+        # prevent overflow
+        lr = ops.clip_by_value(lr, clip_value_min=self.zero)
         return lr
 
     def construct(self, global_step: Tensor) -> Tensor:

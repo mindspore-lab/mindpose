@@ -3,12 +3,37 @@ from typing import Any, Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
+from ...register import register
+
 from ..column_names import COLUMN_MAP
 from .transform import Transform
 from .utils import affine_transform, fliplr_joints, get_affine_transform
 
+__all__ = [
+    "TopDownTransform",
+    "TopDownAffineToSingle",
+    "TopDownGenerateTarget",
+    "TopDownHorizontalRandomFlip",
+    "TopDownHalfBodyTransform",
+    "TopDownRandomScaleRotation",
+]
+
 
 class TopDownTransform(Transform):
+    """Transform the input data into the output data based on top-down approach.
+    This is an abstract class, child class must implement `transform` method.
+
+    Args:
+        is_train: Whether the transformation is for training/testing. Default: True
+        config: Method-specific configuration. Default: None
+
+    Inputs:
+        data: Data tuples need to be transformed
+
+    Outputs:
+        result: Transformed data tuples
+    """
+
     def setup_required_field(self) -> List[str]:
         if self.is_train:
             return COLUMN_MAP["topdown"]["train"]
@@ -17,50 +42,40 @@ class TopDownTransform(Transform):
     def load_transform_cfg(self) -> Dict[str, Any]:
         """Loading the annoation info from the config file"""
         transform_cfg = dict()
-        transform_cfg["image_size"] = self.config.get("image_size", [192, 256])
-        transform_cfg["heatmap_size"] = self.config.get("heatmap_size", [48, 64])
+        transform_cfg["image_size"] = np.array(self.config["image_size"])
+        transform_cfg["heatmap_size"] = np.array(self.config["heatmap_size"])
+        assert len(transform_cfg["image_size"]) == 2
+        assert len(transform_cfg["heatmap_size"]) == 2
 
-        # TODO: read array from config
-        transform_cfg["joint_weights"] = [
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.0,
-            1.2,
-            1.2,
-            1.5,
-            1.5,
-            1.0,
-            1.0,
-            1.2,
-            1.2,
-            1.5,
-            1.5,
-        ]
-
-        transform_cfg["flip_pairs"] = [
-            [1, 2],
-            [3, 4],
-            [5, 6],
-            [7, 8],
-            [9, 10],
-            [11, 12],
-            [13, 14],
-            [15, 16],
-        ]
-
-        transform_cfg["upper_body_ids"] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        transform_cfg["joint_weights"] = np.array(self.config["joint_weights"])
+        transform_cfg["flip_pairs"] = np.array(self.config["flip_pairs"])
+        transform_cfg["upper_body_ids"] = np.array(self.config["upper_body_ids"])
+        transform_cfg["pixel_std"] = float(self.config["pixel_std"])
 
         return transform_cfg
 
 
+@register("transform", extra_name="topdown_affine_to_single")
 class TopDownAffineToSingle(TopDownTransform):
-    """Affine transform the image to make input with single instance."""
+    """Affine transform the image to output cropped images with single instance.
+
+    Args:
+        is_train: Whether the transformation is for training/testing. Default: True
+        config: Method-specific configuration. Default: None
+
+    Inputs:
+        data: Data tuples need to be transformed.
+
+    Outputs:
+        result: Transformed data tuples
+    """
 
     def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Perform affine transform
+
+        Required `keys` in `state`: image, center, scale, rotation, keypoints (optional)
+        Output `keys` in transformed state`: image, keypoints (optional)
+        """
         image_size = self._transform_cfg["image_size"]
 
         trans = get_affine_transform(
@@ -77,7 +92,8 @@ class TopDownAffineToSingle(TopDownTransform):
         )
 
         if "keypoints" in state:
-            for i in range(self.num_joints):
+            num_joints = state["keypoints"].shape[0]
+            for i in range(num_joints):
                 transformed_state["keypoints"] = state["keypoints"]
                 if transformed_state["keypoints"][i, 2] > 0.0:
                     transformed_state["keypoints"][i, 0:2] = affine_transform(
@@ -87,36 +103,54 @@ class TopDownAffineToSingle(TopDownTransform):
         return transformed_state
 
 
+@register("transform", extra_name="topdown_generate_target")
 class TopDownGenerateTarget(TopDownTransform):
-    """Generate the target heatmap."""
+    """Generate heatmap from the coordinates
+
+    Args:
+        is_train: Whether the transformation is for training/testing. Default: True
+        config: Method-specific configuration. Default: None
+        sigma: The sigmal size of gausian distribution. Default: 2.0
+        use_different_joint_weights: Use extra joint weight in target weight calculation. Default: False
+
+    Inputs:
+        data: Data tuples need to be transformed.
+
+    Outputs:
+        result: Transformed data tuples
+    """
 
     def __init__(
         self,
         is_train: bool = True,
         config: Optional[Dict[str, Any]] = None,
-        num_joints: int = 17,
         sigma: float = 2.0,
         use_different_joint_weights: bool = False,
     ) -> None:
-        super().__init__(is_train=is_train, num_joints=num_joints, config=config)
+        super().__init__(is_train=is_train, config=config)
         self.sigma = sigma
         self.use_different_joint_weights = use_different_joint_weights
 
     def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate the target heatmap via "MSRA" approach."""
+        """Generate the heatmap
+
+        Required `keys` in `state`: keypoints
+        Output `keys` in transformed state`: taget, target_weight
+        """
 
         image_size = self._transform_cfg["image_size"]
         W, H = self._transform_cfg["heatmap_size"]
         joint_weights = self._transform_cfg["joint_weights"]
+        keypoints = state["keypoints"]
 
-        target_weight = np.zeros((self.num_joints, 1), dtype=np.float32)
-        target = np.zeros((self.num_joints, H, W), dtype=np.float32)
+        num_joints = keypoints.shape[0]
+        target_weight = np.zeros((num_joints, 1), dtype=np.float32)
+        target = np.zeros((num_joints, H, W), dtype=np.float32)
 
         # 3-sigma rule
         tmp_size = self.sigma * 3
-        keypoints = state["keypoints"]
 
-        for joint_id in range(self.num_joints):
+        for joint_id in range(num_joints):
             target_weight[joint_id] = keypoints[joint_id, 2]
 
             feat_stride = image_size / np.array([W, H])
@@ -132,7 +166,7 @@ class TopDownGenerateTarget(TopDownTransform):
                 size = 2 * tmp_size + 1
                 x = np.arange(0, size, 1, np.float32)
                 y = x[:, None]
-                x0 = y0 = size // 2
+                x0, y0 = size // 2, size // 2
                 # The gaussian is not normalized,
                 # we want the center value to equal 1
                 g = np.exp(-((x - x0) ** 2 + (y - y0) ** 2) / (2 * self.sigma**2))
@@ -155,25 +189,37 @@ class TopDownGenerateTarget(TopDownTransform):
         return transformed_state
 
 
+@register("transform", extra_name="topdown_horizontal_random_flip")
 class TopDownHorizontalRandomFlip(TopDownTransform):
-    """Data augmentation with random image horizontal flip.
+    """Perform randomly horizontal flip
 
     Args:
-        flip_prob (float): Probability of flip.
+        is_train: Whether the transformation is for training/testing. Default: True
+        config: Method-specific configuration. Default: None
+        flip_prob: Probability of performing a horizontal flip. Default: 0.5
+
+    Inputs:
+        data: Data tuples need to be transformed.
+
+    Outputs:
+        result: Transformed data tuples
     """
 
     def __init__(
         self,
         is_train: bool = True,
         config: Optional[Dict[str, Any]] = None,
-        num_joints: int = 17,
         flip_prob: float = 0.5,
     ) -> None:
-        super().__init__(is_train=is_train, config=config, num_joints=num_joints)
+        super().__init__(is_train=is_train, config=config)
         self.flip_prob = flip_prob
 
     def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Perform data augmentation with random image flip."""
+        """Perform randomly horizontal flip
+
+        Required `keys` in `state`: image, keypoints, center
+        Output `keys` in transformed state`: image, keypoints, center
+        """
         image = state["image"]
         keypoints = state["keypoints"]
         center = state["center"]
@@ -185,46 +231,50 @@ class TopDownHorizontalRandomFlip(TopDownTransform):
                 image.shape[1],
                 self._transform_cfg["flip_pairs"],
             )
-            center[0] = image.shape[1] - center[0] - 1
+            center[0] = image.shape[1] - center[0]
 
         transformed_state = dict(image=image, keypoints=keypoints, center=center)
         return transformed_state
 
 
+@register("transform", extra_name="topdown_halfbody_transform")
 class TopDownHalfBodyTransform(TopDownTransform):
-    """Data augmentation with half-body transform. Keep only the upper body or
-    the lower body at random.
+    """Perform half-body transform. Keep only the upper body or the lower body at random.
 
     Args:
-        num_joints_half_body (int): Threshold of performing
-            half-body transform. If the body has fewer number
-            of joints (< num_joints_half_body), ignore this step.
-        prob_half_body (float): Probability of half-body transform.
+        is_train: Whether the transformation is for training/testing. Default: True
+        config: Method-specific configuration. Default: None
+        num_joints_half_body: Threshold number of performing half-body transform. Default: 8
+        prob_half_body: Probability of performing half-body transform. Default: 0.3
+        scale_padding: Extra scale padding multiplier in generating the cropped images. Default: 1.5
+
+    Inputs:
+        data: Data tuples need to be transformed.
+
+    Outputs:
+        result: Transformed data tuples
     """
 
     def __init__(
         self,
         is_train: bool = True,
         config: Optional[Dict[str, Any]] = None,
-        num_joints: int = 17,
         num_joints_half_body: int = 8,
         prob_half_body: float = 0.3,
-        pixel_std: float = 200.0,
         scale_padding: float = 1.5,
     ) -> None:
-        super().__init__(is_train=is_train, config=config, num_joints=num_joints)
+        super().__init__(is_train=is_train, config=config)
         self.num_joints_half_body = num_joints_half_body
         self.prob_half_body = prob_half_body
-        self.pixel_std = float(pixel_std)
         self.scale_padding = scale_padding
 
     def half_body_transform(
-        self, keypoints: np.ndarray
+        self, keypoints: np.ndarray, num_joints: int = 17
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Get center&scale for half-body transform."""
         upper_joints = []
         lower_joints = []
-        for joint_id in range(self.num_joints):
+        for joint_id in range(num_joints):
             if keypoints[joint_id][2] > 0:
                 if joint_id in self._transform_cfg["upper_body_ids"]:
                     upper_joints.append(keypoints[joint_id])
@@ -260,55 +310,78 @@ class TopDownHalfBodyTransform(TopDownTransform):
         elif w < aspect_ratio * h:
             w = h * aspect_ratio
 
-        scale = np.array([w / self.pixel_std, h / self.pixel_std], dtype=np.float32)
+        scale = np.array(
+            [
+                w / self._transform_cfg["pixel_std"],
+                h / self._transform_cfg["pixel_std"],
+            ],
+            dtype=np.float32,
+        )
         scale = scale * self.scale_padding
         return center, scale
 
     def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Perform data augmentation with half-body transform."""
+        """Perform half-body transform.
+
+        Required `keys` in `state`: keypoints
+        Output `keys` in transformed state`: center, scale
+        """
         keypoints = state["keypoints"]
+        num_joints = keypoints.shape[0]
 
         if (
             np.sum(keypoints[:, 2]) > self.num_joints_half_body
             and np.random.rand() < self.prob_half_body
         ):
 
-            c_half_body, s_half_body = self.half_body_transform(keypoints)
+            c_half_body, s_half_body = self.half_body_transform(
+                keypoints, num_joints=num_joints
+            )
 
             if c_half_body is not None and s_half_body is not None:
-                state["center"] = c_half_body
-                state["scale"] = s_half_body
                 transformed_state = dict(center=c_half_body, scale=s_half_body)
                 return transformed_state
 
         return dict()
 
 
+@register("transform", extra_name="topdown_randomscale_rotation")
 class TopDownRandomScaleRotation(TopDownTransform):
-    """Data augmentation with random scaling & rotating.
+    """Perform random scaling and rotations
 
     Args:
-        rot_factor (int): Rotating to ``[-2*rot_factor, 2*rot_factor]``.
-        scale_factor (float): Scaling to ``[1-scale_factor, 1+scale_factor]``.
-        rot_prob (float): Probability of random rotation.
+        is_train: Whether the transformation is for training/testing. Default: True
+        config: Method-specific configuration. Default: None
+        rot_factor: Std of rotation degree. Default: 40.
+        scale_factor: Std of scaling value. Default: 0.5
+        rot_prob: Probability of performing rotation. Default: 0.6
+
+    Inputs:
+        data: Data tuples need to be transformed.
+
+    Outputs:
+        result: Transformed data tuples
     """
 
     def __init__(
         self,
         is_train: bool = True,
         config: Optional[Dict[str, Any]] = None,
-        num_joints: int = 17,
         rot_factor: float = 40.0,
         scale_factor: float = 0.5,
         rot_prob: float = 0.6,
     ) -> None:
-        super().__init__(is_train=is_train, config=config, num_joints=num_joints)
+        super().__init__(is_train=is_train, config=config)
         self.rot_factor = rot_factor
         self.scale_factor = scale_factor
         self.rot_prob = rot_prob
 
     def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Perform data augmentation with random scaling & rotating."""
+        """Perform random rotation and scaling
+
+        Required `keys` in `state`: "scale"
+        Output `keys` in transformed state`: scale, rotation
+        """
         s = state["scale"]
 
         sf = self.scale_factor
@@ -322,12 +395,3 @@ class TopDownRandomScaleRotation(TopDownTransform):
 
         transformed_state = dict(scale=s, rotation=r)
         return transformed_state
-
-
-TOPDOWN_TRANSFORM_MAPPING = {
-    "topdown_horizontal_random_flip": TopDownHorizontalRandomFlip,
-    "topdown_halfbody_transform": TopDownHalfBodyTransform,
-    "topdown_randomscale_rotation": TopDownRandomScaleRotation,
-    "topdown_affine_to_single": TopDownAffineToSingle,
-    "topdown_generate_target": TopDownGenerateTarget,
-}

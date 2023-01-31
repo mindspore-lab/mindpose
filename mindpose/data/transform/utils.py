@@ -6,23 +6,17 @@ import numpy as np
 
 def fliplr_joints(
     keypoints: np.ndarray, img_width: int, flip_pairs: List[Tuple[int, int]]
-):
+) -> np.ndarray:
     """Flip human joints horizontally.
 
-    Note:
-        num_keypoints: K
-
     Args:
-        keypoints:
-        img_width (int): Image width.
-        flip_pairs (list[tuple()]): Pairs of keypoints which are mirrored
+        keypoints: Keyponts pair, in shape [N, (x, y)]
+        img_width: Image width.
+        flip_pairs: Pairs of keypoints which are mirrored
             (for example, left ear -- right ear).
 
     Returns:
-        tuple: Flipped human joints.
-
-        - joints_3d_flipped (np.ndarray([K, 3])): Flipped joints.
-        - joints_3d_visible_flipped (np.ndarray([K, 1])): Joint visibility.
+        keypoints_flipped: Flipped human joints.
     """
     assert img_width > 0
 
@@ -34,28 +28,31 @@ def fliplr_joints(
         keypoints_flipped[right, :] = keypoints[left, :]
 
     # Flip horizontally
-    keypoints_flipped[:, 0] = img_width - 1 - keypoints_flipped[:, 0]
+    keypoints_flipped[:, 0] = img_width - keypoints_flipped[:, 0]
 
     return keypoints_flipped
 
 
-def get_affine_transform(center, scale, rot, output_size, shift=(0.0, 0.0), inv=False):
+def get_affine_transform(
+    center: np.ndarray,
+    scale: np.ndarray,
+    rot: float,
+    output_size: Tuple[int, int],
+    shift: Tuple[float, float] = (0.0, 0.0),
+    inv: bool = False,
+) -> np.ndarray:
     """Get the affine transform matrix, given the center/scale/rot/output_size.
 
     Args:
-        center (np.ndarray[2, ]): Center of the bounding box (x, y).
-        scale (np.ndarray[2, ]): Scale of the bounding box
-            wrt [width, height].
-        rot (float): Rotation angle (degree).
-        output_size (np.ndarray[2, ] | list(2,)): Size of the
-            destination heatmaps.
-        shift (0-100%): Shift translation ratio wrt the width/height.
-            Default (0., 0.).
-        inv (bool): Option to inverse the affine transform direction.
-            (inv=False: src->dst or inv=True: dst->src)
+        center: Center of the bounding box (x, y).
+        scale: Scale of the bounding box with respect to [width, height].
+        rot: Rotation angle in degree.
+        output_size: Size of the destination heatmaps, in height, width.
+        shift: Shift translation ratio wrt the width/height. Default: [0., 0.].
+        inv: Whether to nverse the affine transform direction. Default: False
 
     Returns:
-        np.ndarray: The transform matrix.
+        trans: The transform matrix.
     """
     assert len(center) == 2
     assert len(scale) == 2
@@ -92,15 +89,15 @@ def get_affine_transform(center, scale, rot, output_size, shift=(0.0, 0.0), inv=
     return trans
 
 
-def affine_transform(pt, trans_mat):
+def affine_transform(pt, trans_mat: np.ndarray) -> np.ndarray:
     """Apply an affine transformation to the points.
 
     Args:
-        pt (np.ndarray): a 2 dimensional point to be transformed
-        trans_mat (np.ndarray): 2x3 matrix of an affine transform
+        pt: a 2 dimensional point to be transformed
+        trans_mat: 2x3 matrix of an affine transform
 
     Returns:
-        np.ndarray: Transformed points.
+        new_pt: Transformed points.
     """
     assert len(pt) == 2
     new_pt = np.array(trans_mat) @ np.array([pt[0], pt[1], 1.0])
@@ -108,12 +105,12 @@ def affine_transform(pt, trans_mat):
     return new_pt
 
 
-def rotate_point(pt, angle_rad):
+def rotate_point(pt: Tuple[float, float], angle_rad: float) -> Tuple[float, float]:
     """Rotate a point by an angle.
 
     Args:
-        pt (list[float]): 2 dimensional point to be rotated
-        angle_rad (float): rotation angle by radian
+        pt: 2 dimensional point to be rotated
+        angle_rad: rotation angle by radian
 
     Returns:
         list[float]: Rotated point.
@@ -127,7 +124,7 @@ def rotate_point(pt, angle_rad):
     return rotated_pt
 
 
-def _get_3rd_point(a, b):
+def _get_3rd_point(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     """To calculate the affine matrix, three pairs of points are required. This
     function is used to get the 3rd point, given 2D points a & b.
 
@@ -135,11 +132,11 @@ def _get_3rd_point(a, b):
     anticlockwise, using b as the rotation center.
 
     Args:
-        a (np.ndarray): point(x,y)
-        b (np.ndarray): point(x,y)
+        a: point(x,y)
+        b: point(x,y)
 
     Returns:
-        np.ndarray: The 3rd point.
+        third_pt: The 3rd point.
     """
     assert len(a) == 2
     assert len(b) == 2

@@ -40,7 +40,7 @@ class TopDownHeatMapInferencer(Inferencer):
             "has_heatmap_output", True
         )
         inference_cfg["hflip_tta"] = self.config.get("hflip_tta", False)
-        inference_cfg["shift_heatmap"] = self.config.get("hift_heatmap", False)
+        inference_cfg["shift_heatmap"] = self.config.get("shift_heatmap", False)
 
         # TODO: read array from config
         inference_cfg["flip_pairs"] = [

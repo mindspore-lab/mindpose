@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+"""Perform training
+"""
 import os
 import sys
 
@@ -11,8 +14,7 @@ from argparse import Namespace
 import mindspore as ms
 from common.config import parse_args
 from mindpose.callbacks import EvalCallback
-from mindpose.data.dataset import create_dataset
-from mindpose.data.pipeline import create_pipeline
+from mindpose.data import create_dataset, create_pipeline
 from mindpose.engine.evaluators import create_evaluator
 from mindpose.engine.inferencer import create_inferencer
 from mindpose.models import (
@@ -62,7 +64,7 @@ def train(args: Namespace) -> None:
         device_num=device_num,
         rank_id=rank_id,
         num_workers=args.num_parallel_workers,
-        config=args.dataset_args,
+        config=args.dataset_detail,
     )
 
     val_dataset = create_dataset(
@@ -75,7 +77,7 @@ def train(args: Namespace) -> None:
         use_gt_bbox_for_val=args.val_use_gt_bbox,
         detection_file=args.val_detection_result,
         num_workers=args.num_parallel_workers,
-        config=args.dataset_args,
+        config=args.dataset_detail,
     )
 
     # create pipeline
@@ -85,8 +87,9 @@ def train(args: Namespace) -> None:
         method=args.pipeline_method,
         batch_size=args.batch_size,
         is_train=True,
-        num_joints=args.num_joints,
-        config=args.dataset_args,
+        normalize_mean=args.normalize_mean,
+        normalize_std=args.normalize_std,
+        config=args.dataset_detail,
     )
 
     val_dataset = create_pipeline(
@@ -95,8 +98,9 @@ def train(args: Namespace) -> None:
         method=args.pipeline_method,
         batch_size=args.batch_size,
         is_train=False,
-        num_joints=args.num_joints,
-        config=args.dataset_args,
+        normalize_mean=args.normalize_mean,
+        normalize_std=args.normalize_std,
+        config=args.dataset_detail,
     )
 
     # create network
@@ -114,7 +118,7 @@ def train(args: Namespace) -> None:
         init_by_kaiming_uniform(net)
 
     # create evaluation network
-    decoder = create_decoder(args.decoder)
+    decoder = create_decoder(args.decoder_name)
     val_net = create_eval_network(net, decoder)
 
     # create loss

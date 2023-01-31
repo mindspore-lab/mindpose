@@ -89,7 +89,7 @@ mpirun --allow-run-as-root -n 4 python tools/train.py --config configs/hrnet/hrn
 To run training on the [OpenI](https://openi.pcl.ac.cn/) cloud platform:
 
 1. Create a new training task on the cloud platform.
-2. Use `tools/eval_on_openi.py` as the starting file.
+2. Use `tools/train_on_openi.py` as the starting file.
 3. Add run parameter `config` and specify the path to the yaml config file on the website UI interface.
 4. Fill in other blanks on the website and launch the training task.
 

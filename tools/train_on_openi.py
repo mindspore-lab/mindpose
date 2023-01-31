@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+"""Runing training on OpenI
+"""
 import argparse
 import functools
 import os
@@ -65,8 +68,9 @@ def download_ckpt(s3_path: str, dest: str) -> str:
 
 
 def upload_data(src: str, s3_path: str) -> None:
-    print("Uploading data to s3")
-    mox.file.copy_parallel(src_url=src, dst_url=s3_path)
+    abs_src = os.path.abspath(src)
+    print(f"Uploading data from {abs_src} to s3")
+    mox.file.copy_parallel(src_url=abs_src, dst_url=s3_path)
 
 
 def parse_args(
@@ -76,7 +80,7 @@ def parse_args(
 ) -> argparse.Namespace:
     parser = create_parser(description=description, need_ckpt=need_ckpt)
     # add arguments
-    # the follow arguments are proviced by Opnei, do not change.
+    # the follow arguments are proviced by OpenI, do not change.
     parser.add_argument("--device_target", help="Device target")
     parser.add_argument("--data_url", help="Path of the data url in S3")
     parser.add_argument("--train_url", help="Path of the training output in S3")
@@ -117,5 +121,6 @@ if __name__ == "__main__":
     train(args)
 
     # copy output from local to s3
+    time.sleep(30)
     if LOCAL_RANK == 0:
         upload_data(src=args.outdir, s3_path=args.train_url)
