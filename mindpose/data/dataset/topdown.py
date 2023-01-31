@@ -6,8 +6,9 @@ import numpy as np
 
 class TopDownDataset:
     """Create an iterator for TopDown dataset,
-    return the dict with key "img", "target" and "target_weight" for training,
-    return the dict with key "img", "meta_data" for testing
+    return the tuple with image, center, scale, keypoints, rotation, target, target_weight for training,
+    return the tuple with image, center, scale, rotation, image_file, box, box_id, box_score for evaluation.
+    This is an abstract class, child class must implement `load_dataset_cfg` and `load_dataset` method.
 
     Args:
         image_root: The path of the directory storing images
@@ -16,6 +17,19 @@ class TopDownDataset:
         use_gt_bbox_for_val: Use GT bbox instead of detection result during evaluation. Default: False
         detection_file: Path of the detection result. Defaul: None
         config: Method-specific configuration.
+
+    Returns:
+        image: Encoded data for image file
+        center: Center (x, y) of the bounding box
+        scale: Scale of the bounding box
+        keypoints: Keypoints in (x, y, visibility)
+        rotation: Rotatated degree
+        target: A placeholder for later pipline using
+        target_weight: A placeholder of later pipline using
+        image_file: Path of the image file
+        bbox: Bounding box coordinate (x, y, w, h)
+        bbox_id: Bounding box id for each single image
+        bbox_score: Bounding box score, 1 for ground truth
     """
 
     def __init__(
@@ -43,20 +57,22 @@ class TopDownDataset:
                 )
 
     def load_dataset_cfg(self) -> Dict[str, Any]:
-        """Loading the dataset config"""
+        """Loading the dataset config, where the returned the config must be a dictionary
+        which stores the configuration of the dataset, such as the image_size, etc.
+        """
         raise NotImplementedError("Child class must implement this method.")
 
     def load_dataset(self) -> List[Dict[str, Any]]:
         """Loading the dataset, where the returned record should containes the following key
 
         Keys:
-            image_file: path of the image file
-            center: center (x, y) of the bounding box
-            scale: scale of the bounding box
-            bbox: bounding box coordinate (x, y, w, h)
-            keypoints: keypoints in (x, y, visibility)
-            bbox_score: bounding box score, 1 for ground truth
-            bbox_id: bounding box id for each single image
+            image_file: Path of the image file
+            center: Center (x, y) of the bounding box
+            scale: Scale of the bounding box
+            bbox: Bounding box coordinate (x, y, w, h)
+            keypoints: Keypoints in (x, y, visibility)
+            bbox_score: Bounding box score, 1 for ground truth
+            bbox_id: Bounding box id for each single image
         """
         raise NotImplementedError("Child class must implement this method.")
 
@@ -109,21 +125,12 @@ class TopDownDataset:
     def _xywh2cs(
         self, x: float, y: float, w: float, h: float
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """This encodes bbox(x,y,w,h) into (center, scale)
-
-        Args:
-            x, y, w, h (float): left, top, width and height
-            padding (float): bounding box padding factor
-
-        Returns:
-            center (np.ndarray[float32](2,)): center of the bbox (x, y).
-            scale (np.ndarray[float32](2,)): scale of the bbox w & h.
-        """
         aspect_ratio = (
             self._dataset_cfg["image_size"][0] / self._dataset_cfg["image_size"][1]
         )
         center = np.array([x + w * 0.5, y + h * 0.5], dtype=np.float32)
 
+        # perform a random center shift for training dataset
         if self.is_train and np.random.rand() < 0.3:
             center += 0.4 * (np.random.rand(2) - 0.5) * [w, h]
 

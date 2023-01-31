@@ -5,7 +5,6 @@ enable_graph_kernel: False
 num_parallel_workers: 2
 val_while_train: True
 val_interval: 10
-val_use_gt_bbox: True
 
 # dataset
 dataset_format: "coco_topdown"
@@ -14,16 +13,43 @@ train_label: "data/coco/annotations/person_keypoints_train2017.json"
 val_root: "data/coco/images/val2017"
 val_label: "data/coco/annotations/person_keypoints_val2017.json"
 val_detection_result: "data/coco/person_detection_results/COCO_val2017_detections_AP_H_56_person.json"
+val_use_gt_bbox: True
 batch_size: 32
 num_joints: 17
-dataset_args:
+dataset_detail:
   image_size: [192, 256]
   heatmap_size: [48, 64]
   pixel_std: 200.
   scale_padding: 1.25
+  det_bbox_thr: 0.
+  joint_weights:
+    [
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.0,
+      1.2,
+      1.2,
+      1.5,
+      1.5,
+      1.0,
+      1.0,
+      1.2,
+      1.2,
+      1.5,
+      1.5,
+    ]
+  flip_pairs:
+    [[1, 2], [3, 4], [5, 6], [7, 8], [9, 10], [11, 12], [13, 14], [15, 16]]
+  upper_body_ids: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
 # pipeline
 pipeline_method: "topdown"
+normalize_mean: [0.485, 0.456, 0.406]
+normalize_std: [0.229, 0.224, 0.255]
 train_transforms:
   - topdown_horizontal_random_flip:
       - flip_prob: 0.5
@@ -49,7 +75,7 @@ backbone_ckpt_url: ""
 neck_name: ""
 neck_out_channels: 256
 head_name: "hrnet_head"
-decoder: "topdown_heatmap"
+decoder_name: "topdown_heatmap"
 init_by_kaiming_uniform: True
 
 # loss
@@ -61,11 +87,11 @@ loss_args:
 
 # mix-precision training
 amp_level: "O2"
-loss_scale: 1024.
+loss_scale: 1024
 
 # lr scheduler
 scheduler: "warmup_cosine_decay"
-num_epochs: 210
+num_epochs: 420
 warmup: 500
 scheduler_args:
   min_lr: 0.

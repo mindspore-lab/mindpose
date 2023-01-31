@@ -1,20 +1,20 @@
-"""Model registry
+"""Components registry
 """
 import logging
 from collections import defaultdict
 from typing import Any, Callable, List
 
-_module_to_models = defaultdict(set)
-_model_to_module = dict()
-_model_entrypoint = defaultdict(dict)
+_module_to_components = defaultdict(set)
+_components_to_module = dict()
+_entrypoints = defaultdict(dict)
 
 
 def _global_register(module_name: str, func_name: str, fn: Callable[..., Any]) -> None:
-    if func_name in _model_entrypoint[module_name]:
+    if func_name in _entrypoints[module_name]:
         logging.warning(f"`{func_name}` is already registered")
-    _model_entrypoint[module_name][func_name] = fn
-    _model_to_module[func_name] = module_name
-    _module_to_models[module_name].add(func_name)
+    _entrypoints[module_name][func_name] = fn
+    _components_to_module[func_name] = module_name
+    _module_to_components[module_name].add(func_name)
 
 
 def register(module_name: str, extra_name: str = "") -> Callable[..., Any]:
@@ -36,15 +36,24 @@ def register(module_name: str, extra_name: str = "") -> Callable[..., Any]:
     return wrapper
 
 
-def model_entrypoint(module_name: str, model_name: str) -> Callable[..., Any]:
-    return _model_entrypoint[module_name][model_name]
-
-
-def list_models(module: str) -> List[str]:
-    models = sorted(list(_module_to_models[module]))
-    return models
+def list_components(module: str) -> List[str]:
+    components = sorted(list(_module_to_components[module]))
+    return components
 
 
 def list_modules() -> List[str]:
-    modules = _module_to_models.keys()
+    modules = _module_to_components.keys()
     return sorted(list(modules))
+
+
+def entrypoint(module_name: str, component_name: str) -> Callable[..., Any]:
+    if module_name not in _entrypoints:
+        raise ValueError(
+            f"Unkown module `{module_name}`. " f"Supported modules: {list_modules()}"
+        )
+    if component_name not in _entrypoints[module_name]:
+        raise ValueError(
+            f"Unkown components `{component_name}`. "
+            f"Supported componetns in `{module_name}`: {list_components(module_name)}"
+        )
+    return _entrypoints[module_name][component_name]

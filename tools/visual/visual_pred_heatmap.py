@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+"""Visualize the heatmap of the prediction on the cropped validation images
+"""
 import os
 import sys
 
@@ -13,8 +16,7 @@ import cv2
 import mindspore as ms
 import numpy as np
 from common.config import parse_args
-from mindpose.data.dataset import create_dataset
-from mindpose.data.pipeline import create_pipeline
+from mindpose.data import create_dataset, create_pipeline
 from mindpose.models import create_decoder, create_eval_network, create_network
 
 
@@ -28,7 +30,7 @@ def visual_pred_heatmap(args: Namespace) -> None:
         use_gt_bbox_for_val=args.val_use_gt_bbox,
         detection_file=args.val_detection_result,
         num_workers=args.num_parallel_workers,
-        config=args.dataset_args,
+        config=args.dataset_detail,
     )
 
     # create pipeline
@@ -38,8 +40,9 @@ def visual_pred_heatmap(args: Namespace) -> None:
         method=args.pipeline_method,
         batch_size=args.batch_size,
         is_train=False,
-        num_joints=args.num_joints,
-        config=args.dataset_args,
+        normalize_mean=args.normalize_mean,
+        normalize_std=args.normalize_std,
+        config=args.dataset_detail,
     )
 
     # create network
@@ -54,10 +57,11 @@ def visual_pred_heatmap(args: Namespace) -> None:
     ms.load_checkpoint(args.ckpt, net, strict_load=False)
 
     # create evaluation network
-    decoder = create_decoder(args.decoder, to_original=False)
+    decoder = create_decoder(args.decoder_name, to_original=False)
     net = create_eval_network(net, decoder, output_raw=True)
 
     for i, data in enumerate(dataset.create_dict_iterator(num_epochs=1)):
+        # visualize the first 10 images only
         if i > 10:
             break
 
@@ -66,8 +70,8 @@ def visual_pred_heatmap(args: Namespace) -> None:
         )
 
         img = data["image"].asnumpy()[0]
-        std = np.array([0.229, 0.224, 0.225])
-        mean = np.array([0.485, 0.456, 0.406])
+        std = np.array(args.normalize_std)
+        mean = np.array(args.normalize_mean)
         img = img * std[:, None, None] + mean[:, None, None]
         img = img * 255.0
         img = np.array(img.round(), dtype=np.uint8)
@@ -104,7 +108,8 @@ def visual_pred_heatmap(args: Namespace) -> None:
 
 def main():
     args = parse_args(
-        description="Visualize the prediction of heatmap method", need_ckpt=True
+        description="Visualize the heatmap of the prediction on the cropped validation images",
+        need_ckpt=True,
     )
     visual_pred_heatmap(args)
 

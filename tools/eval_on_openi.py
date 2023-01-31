@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+"""Perform evaluation on OpenI
+"""
 import argparse
 import os
 import subprocess
@@ -46,7 +49,7 @@ def parse_args(
 ) -> argparse.Namespace:
     parser = create_parser(description=description, need_ckpt=need_ckpt)
     # add arguments
-    # the follow arguments are proviced by Opnei, do not change.
+    # the follow arguments are proviced by OpenI, do not change.
     parser.add_argument("--device_target", help="Device target")
     parser.add_argument("--data_url", help="Path of the data url in S3")
     parser.add_argument("--result_url", help="Path of the evaluaton output in S3")

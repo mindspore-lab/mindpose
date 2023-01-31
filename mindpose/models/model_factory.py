@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional
 
-from ..register import list_models, model_entrypoint
+from ..register import entrypoint
 from .backbones import Backbone
 from .decoders import Decoder
 from .heads import Head
@@ -28,16 +28,9 @@ def create_backbone(
     Returns:
         backbone: Model backbone cell
     """
-    try:
-        return model_entrypoint("backbone", name)(
-            pretrained=pretrained, ckpt_url=ckpt_url, in_channels=in_channels, **kwargs
-        )
-    except KeyError:
-        supported_models = list_models("backbone")
-        raise ValueError(
-            f"Unsupported `{name}` in backbones. "
-            f"Supported backbones: `{supported_models}`"
-        )
+    return entrypoint("backbone", name)(
+        pretrained=pretrained, ckpt_url=ckpt_url, in_channels=in_channels, **kwargs
+    )
 
 
 def create_head(name: str, in_channels, num_joints: int = 17, **kwargs: Any) -> Head:
@@ -52,15 +45,9 @@ def create_head(name: str, in_channels, num_joints: int = 17, **kwargs: Any) -> 
     Returns:
         head: Model head cell
     """
-    try:
-        return model_entrypoint("head", name)(
-            in_channels=in_channels, num_joints=num_joints, **kwargs
-        )
-    except KeyError:
-        supported_models = list_models("head")
-        raise ValueError(
-            f"Unsupported `{name}` in heads. " f"Supported heads: `{supported_models}`"
-        )
+    return entrypoint("head", name)(
+        in_channels=in_channels, num_joints=num_joints, **kwargs
+    )
 
 
 def create_neck(name: str, in_channels, out_channels, **kwargs: Any) -> Neck:
@@ -75,15 +62,9 @@ def create_neck(name: str, in_channels, out_channels, **kwargs: Any) -> Neck:
     Returns:
         neck: Model neck cell
     """
-    try:
-        return model_entrypoint("neck", name)(
-            in_channels=in_channels, out_channels=out_channels, **kwargs
-        )
-    except KeyError:
-        supported_models = list_models("neck")
-        raise ValueError(
-            f"Unsupported `{name}` in necks. " f"Supported necks: `{supported_models}`"
-        )
+    return entrypoint("neck", name)(
+        in_channels=in_channels, out_channels=out_channels, **kwargs
+    )
 
 
 def create_decoder(name: str, **kwargs: Any) -> Decoder:
@@ -96,14 +77,7 @@ def create_decoder(name: str, **kwargs: Any) -> Decoder:
     Returns:
         decoder: Model decoder cell
     """
-    try:
-        return model_entrypoint("decoder", name)(**kwargs)
-    except KeyError:
-        supported_models = list_models("decoder")
-        raise ValueError(
-            f"Unsupported `{name}` in decoders. "
-            f"Supported decoders: `{supported_models}`"
-        )
+    return entrypoint("decoder", name)(**kwargs)
 
 
 def create_loss(name: str, **kwargs: Any) -> Loss:
@@ -116,13 +90,7 @@ def create_loss(name: str, **kwargs: Any) -> Loss:
     Returns:
         loss: Loss cell
     """
-    try:
-        return model_entrypoint("loss", name)(**kwargs)
-    except KeyError:
-        supported_models = list_models("loss")
-        raise ValueError(
-            f"Unsupported `{name}` in loss. " f"Supported loss: `{supported_models}`"
-        )
+    return entrypoint("loss", name)(**kwargs)
 
 
 def create_network(
@@ -156,9 +124,9 @@ def create_network(
     Outputs:
         net: Network cell
     """
-    backbone_args = dict() if backbone_args is None else backbone_args
-    neck_args = dict() if neck_args is None else neck_args
-    head_args = dict() if head_args is None else head_args
+    backbone_args = backbone_args if backbone_args else dict()
+    neck_args = neck_args if neck_args else dict()
+    head_args = head_args if head_args else dict()
 
     backbone = create_backbone(
         backbone_name,
