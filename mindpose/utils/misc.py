@@ -5,7 +5,8 @@ from mindspore import Tensor
 
 
 class Allreduce(nn.Cell):
-    """Reduces the tensor data across all devices in such a way that all devices will get the same final result."""
+    """Reduces the tensor data across all devices
+    in such a way that all devices will get the same final result."""
 
     def __init__(self) -> Tensor:
         super(Allreduce, self).__init__()

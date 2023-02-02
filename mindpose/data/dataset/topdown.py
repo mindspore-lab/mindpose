@@ -57,7 +57,7 @@ class TopDownDataset:
                 )
 
     def load_dataset_cfg(self) -> Dict[str, Any]:
-        """Loading the dataset config, where the returned the config must be a dictionary
+        """Loading the dataset config, where the returned config must be a dictionary
         which stores the configuration of the dataset, such as the image_size, etc.
         """
         raise NotImplementedError("Child class must implement this method.")
@@ -87,7 +87,7 @@ class TopDownDataset:
                 image,
                 record["center"],
                 record["scale"],
-                record["keypoints"],
+                np.asarray(record["keypoints"], dtype=np.float32),
                 record["rotation"],
                 np.float32(0),  # placeholder for target
                 np.float32(0),  # placeholder for target_weight

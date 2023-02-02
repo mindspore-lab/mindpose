@@ -2,7 +2,7 @@
 mode: 0
 distribute: True
 enable_graph_kernel: False
-num_parallel_workers: 2
+num_parallel_workers: 4
 val_while_train: True
 val_interval: 10
 
@@ -73,16 +73,17 @@ backbone_name: "resnet50"
 backbone_pretrained: False
 backbone_ckpt_url: ""
 neck_name: ""
-neck_out_channels: 256
+neck_out_channels: null
 head_name: "simple_baseline_head"
 decoder_name: "topdown_heatmap"
+decoder_detail:
+  shift_coordinate: False
 init_by_kaiming_uniform: True
 
 # loss
 loss: "joint_mse"
 loss_with_extra_input: True
-# loss specific args
-loss_args:
+loss_detail:
   use_target_weight: True
 
 # mix-precision training
@@ -93,28 +94,45 @@ loss_scale: 1024
 scheduler: "warmup_cosine_decay"
 num_epochs: 420
 warmup: 500
-scheduler_args:
+scheduler_detail:
   min_lr: 0.
 
 # optimizer
 optimizer: "adam"
 lr: 0.00002
 scale_lr: False
-optimizer_args:
-  weight_decay: 0.0001
+weight_decay: 0.0001
+momentum: 0.9
 
 # evaluation
 inference_method: "topdown_heatmap"
 eval_method: "topdown"
-metric:
-  - "AP"
-# evaluation specific args
-eval_args:
+eval_metric: ["AP"]
+eval_detail:
   has_heatmap_output: True
   hflip_tta: False
   shift_heatmap: False
   vis_thr: 0.2
   oks_thr: 0.9
-  det_bbox_thr: 0
   use_nms: True
   soft_nms: False
+  sigmas:
+    [
+      0.026,
+      0.025,
+      0.025,
+      0.035,
+      0.035,
+      0.079,
+      0.079,
+      0.072,
+      0.072,
+      0.062,
+      0.062,
+      0.107,
+      0.107,
+      0.087,
+      0.087,
+      0.089,
+      0.089,
+    ]

@@ -28,7 +28,8 @@ def fliplr_joints(
         keypoints_flipped[right, :] = keypoints[left, :]
 
     # Flip horizontally
-    keypoints_flipped[:, 0] = img_width - keypoints_flipped[:, 0]
+    # keypoints is usually stored as integer from 0 to image_size - 1
+    keypoints_flipped[:, 0] = img_width - 1 - keypoints_flipped[:, 0]
 
     return keypoints_flipped
 
@@ -40,6 +41,7 @@ def get_affine_transform(
     output_size: Tuple[int, int],
     shift: Tuple[float, float] = (0.0, 0.0),
     inv: bool = False,
+    pixel_std: float = 200.0,
 ) -> np.ndarray:
     """Get the affine transform matrix, given the center/scale/rot/output_size.
 
@@ -50,6 +52,7 @@ def get_affine_transform(
         output_size: Size of the destination heatmaps, in height, width.
         shift: Shift translation ratio wrt the width/height. Default: [0., 0.].
         inv: Whether to nverse the affine transform direction. Default: False
+        pixel_std: The scaling factor. Default: 200.
 
     Returns:
         trans: The transform matrix.
@@ -59,8 +62,7 @@ def get_affine_transform(
     assert len(output_size) == 2
     assert len(shift) == 2
 
-    # pixel_std is 200.
-    scale_tmp = scale * 200.0
+    scale_tmp = scale * pixel_std
 
     shift = np.array(shift)
     src_w = scale_tmp[0]
@@ -89,7 +91,7 @@ def get_affine_transform(
     return trans
 
 
-def affine_transform(pt, trans_mat: np.ndarray) -> np.ndarray:
+def affine_transform(pt: Tuple[float, float], trans_mat: np.ndarray) -> np.ndarray:
     """Apply an affine transformation to the points.
 
     Args:

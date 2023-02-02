@@ -41,6 +41,7 @@ def visual_gt_heatmap(args: Namespace) -> None:
         is_train=True,
         normalize=False,
         hwc_to_chw=False,
+        num_workers=args.num_parallel_workers,
         config=args.dataset_detail,
     )
 

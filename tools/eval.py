@@ -15,8 +15,7 @@ from argparse import Namespace
 import mindspore as ms
 from common.config import parse_args
 from mindpose.data import create_dataset, create_pipeline
-from mindpose.engine.evaluators import create_evaluator
-from mindpose.engine.inferencer import create_inferencer
+from mindpose.engine import create_evaluator, create_inferencer
 from mindpose.models import create_decoder, create_eval_network, create_network
 
 
@@ -44,6 +43,7 @@ def eval(args: Namespace) -> None:
         is_train=False,
         normalize_mean=args.normalize_mean,
         normalize_std=args.normalize_std,
+        num_workers=args.num_parallel_workers,
         config=args.dataset_detail,
     )
 
@@ -59,14 +59,15 @@ def eval(args: Namespace) -> None:
     ms.load_checkpoint(args.ckpt, net, strict_load=False)
 
     # add decoder head
-    decoder = create_decoder(args.decoder_name)
+    decoder = create_decoder(args.decoder_name, **args.decoder_detail)
     net = create_eval_network(net, decoder)
 
     # create inferencer
     inferencer = create_inferencer(
-        net,
-        config=args.eval_args,
+        net=net,
         name=args.inference_method,
+        config=args.eval_detail,
+        dataset_config=args.dataset_detail,
         decoder=decoder,
         progress_bar=True,
     )
@@ -75,10 +76,11 @@ def eval(args: Namespace) -> None:
     os.makedirs(args.outdir, exist_ok=True)
     keypoint_result_tmp_path = os.path.join(args.outdir, "result_keypoint.json")
     evaluator = create_evaluator(
-        args.eval_method,
-        config=args.eval_args,
         annotation_file=args.val_label,
-        metric=args.metric,
+        name=args.eval_method,
+        metric=args.eval_metric,
+        config=args.eval_detail,
+        dataset_config=args.dataset_detail,
         result_path=keypoint_result_tmp_path,
     )
 
@@ -86,7 +88,7 @@ def eval(args: Namespace) -> None:
     outputs = inferencer(dataset=val_dataset)
 
     # perform evaluation
-    result = evaluator.evaluate(outputs)
+    result = evaluator(outputs)
     with open(os.path.join(args.outdir, "result.json"), "w") as f:
         json.dump(result, f, indent=4)
 

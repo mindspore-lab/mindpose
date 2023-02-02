@@ -550,11 +550,7 @@ class HRNet(Backbone):
 
         return nn.SequentialCell(modules), num_inchannels
 
-    @property
-    def out_channels(self) -> int:
-        return self.stage4_cfg["num_channels"][0]
-
-    def construct(self, x: Tensor) -> List[Tensor]:
+    def forward_feature(self, x: Tensor) -> Tensor:
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -590,16 +586,29 @@ class HRNet(Backbone):
                 x_list.append(self.transition3[i](y_list[-1]))
             else:
                 x_list.append(y_list[i])
-        y_list = self.stage4(x_list)
+        y = self.stage4(x_list)
 
-        return y_list
+        return y
+
+    @property
+    def out_channels(self) -> int:
+        return self.stage4_cfg["num_channels"][0]
 
 
 @register("backbone")
 def hrnet_w32(
     pretrained: bool = False, ckpt_url: str = "", in_channels: int = 3
 ) -> HRNet:
-    """Get HRNet with width=32 model."""
+    """Get HRNet with width=32 model.
+
+    Args:
+        pretrained: Whether the model is pretrained. Default: False
+        ckpt_url: Url of the pretrained weight. Default: ""
+        in_channels: Number of input channels. Default: 3
+
+    Returns:
+        HRNet: HRNet model
+    """
     stage_cfg = dict(
         stage1=dict(
             num_modules=1,
@@ -641,7 +650,16 @@ def hrnet_w32(
 def hrnet_w48(
     pretrained: bool = False, ckpt_url: str = "", in_channels: int = 3
 ) -> HRNet:
-    """Get HRNet with width=48 model."""
+    """Get HRNet with width=48 model.
+
+    Args:
+        pretrained: Whether the model is pretrained. Default: False
+        ckpt_url: Url of the pretrained weight. Default: ""
+        in_channels: Number of input channels. Default: 3
+
+    Returns:
+        HRNet: HRNet model
+    """
     stage_cfg = dict(
         stage1=dict(
             num_modules=1,

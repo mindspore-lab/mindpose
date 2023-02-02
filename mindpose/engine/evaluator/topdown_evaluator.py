@@ -9,22 +9,43 @@ from xtcocotools.coco import COCO
 from xtcocotools.cocoeval import COCOeval
 
 from mindpose.utils.nms import oks_nms, soft_oks_nms
+from ...register import register
 from .evaluator import Evaluator
 
 
+@register("evaluator", extra_name="topdown")
 class TopDownEvaluator(Evaluator):
+    """Create an evaluator based on Topdown method
+
+    Args:
+        annotation_file: Path of the annotation file. It only supports COCO-format.
+        metric: Supported metrics. Default: "AP"
+        num_joints: Number of joints. Default: 17
+        config: Method-specific configuration. Default: None
+        remove_result_file: Remove the cached result file after evaluation. Default: True
+        result_path: Path of the result file. Default: "./result_keypoints.json"
+
+    Inputs:
+        inference_result: Inference result from inference engine
+
+    Outputs:
+        evaluation_result: Evaluation result based on the metric
+    """
+
     SUPPORT_METRICS = {"AP"}
 
     def __init__(
         self,
         annotation_file: str,
         metric: Union[str, List[str]] = "AP",
+        num_joints: int = 17,
         config: Optional[Dict[str, Any]] = None,
         remove_result_file: bool = True,
-        result_path: str = "result_keypoints.json",
-        **kwargs: Any,
+        result_path: str = "./result_keypoints.json",
     ) -> None:
-        super().__init__(annotation_file, metric, config=config)
+        super().__init__(
+            annotation_file, metric=metric, num_joints=num_joints, config=config
+        )
         self.remove_result_file = remove_result_file
         self.result_path = result_path
         self.coco = self.load_ground_truth(self.annotation_file)
@@ -36,45 +57,23 @@ class TopDownEvaluator(Evaluator):
         self._class_to_coco_ind = dict(zip(cats, cat_ids))
 
     def load_evaluation_cfg(self) -> Dict[str, Any]:
-        """Loading the annoation info from the config file"""
         evaluation_cfg = dict()
-        evaluation_cfg["num_joints"] = self.config.get("num_joints", 17)
-        evaluation_cfg["vis_thr"] = self.config.get("vis_thr", 0.2)
-        evaluation_cfg["oks_thr"] = self.config.get("oks_thr", 0.9)
-        evaluation_cfg["use_nms"] = self.config.get("use_nms", True)
-        evaluation_cfg["soft_nms"] = self.config.get("soft_nms", False)
-
-        # TODO: read array from config
-        evaluation_cfg["sigmas"] = [
-            0.026,
-            0.025,
-            0.025,
-            0.035,
-            0.035,
-            0.079,
-            0.079,
-            0.072,
-            0.072,
-            0.062,
-            0.062,
-            0.107,
-            0.107,
-            0.087,
-            0.087,
-            0.089,
-            0.089,
-        ]
+        evaluation_cfg["vis_thr"] = self.config["vis_thr"]
+        evaluation_cfg["oks_thr"] = self.config["oks_thr"]
+        evaluation_cfg["use_nms"] = self.config["use_nms"]
+        evaluation_cfg["soft_nms"] = self.config["soft_nms"]
+        evaluation_cfg["sigmas"] = np.array(self.config["sigmas"])
         return evaluation_cfg
 
     def load_ground_truth(self, annotation_file: str) -> COCO:
         coco = COCO(annotation_file=annotation_file)
         return coco
 
-    def evaluate(self, outputs: Dict[str, Union[np.ndarray, str]]) -> Dict[str, float]:
+    def __call__(self, inference_result: Dict[str, Any]) -> Dict[str, Any]:
         """Evaluate coco keypoint results."""
         kpts = defaultdict(list)
 
-        for record in outputs:
+        for record in inference_result:
             image_path = record["image_path"]
             image_id = self.name2id[os.path.basename(image_path)]
             kpts[image_id].append(
@@ -91,7 +90,6 @@ class TopDownEvaluator(Evaluator):
         kpts = self._sort_and_unique_bboxes(kpts)
 
         # rescoring and oks nms
-        num_joints = self._evaluation_cfg["num_joints"]
         vis_thr = self._evaluation_cfg["vis_thr"]
         oks_thr = self._evaluation_cfg["oks_thr"]
         valid_kpts = []
@@ -101,7 +99,7 @@ class TopDownEvaluator(Evaluator):
                 box_score = n_p["score"]
                 kpt_score = 0
                 valid_num = 0
-                for n_jt in range(0, num_joints):
+                for n_jt in range(0, self.num_joints):
                     t_s = n_p["keypoints"][n_jt][2]
                     if t_s > vis_thr:
                         kpt_score = kpt_score + t_s
@@ -171,7 +169,7 @@ class TopDownEvaluator(Evaluator):
                 continue
 
             _key_points = np.array([img_kpt["keypoints"] for img_kpt in img_kpts])
-            key_points = _key_points.reshape(-1, self._evaluation_cfg["num_joints"] * 3)
+            key_points = _key_points.reshape(-1, self.num_joints * 3)
 
             result = [
                 {
@@ -234,16 +232,6 @@ class TopDownEvaluator(Evaluator):
     def _get_mapping_id_name(
         imgs: Dict[int, str]
     ) -> Tuple[Dict[int, str], Dict[str, int]]:
-        """
-        Args:
-            imgs (dict): dict of image info.
-
-        Returns:
-            tuple: Image name & id mapping dicts.
-
-            - id2name (dict): Mapping image id to name.
-            - name2id (dict): Mapping image name to id.
-        """
         id2name = {}
         name2id = {}
         for image_id, image in imgs.items():

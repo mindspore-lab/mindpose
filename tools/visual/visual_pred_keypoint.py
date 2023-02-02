@@ -41,6 +41,7 @@ def visual_pred_keypoint(args: Namespace) -> None:
         is_train=False,
         normalize_mean=args.normalize_mean,
         normalize_std=args.normalize_std,
+        num_workers=args.num_parallel_workers,
         config=args.dataset_detail,
     )
 
@@ -56,7 +57,7 @@ def visual_pred_keypoint(args: Namespace) -> None:
     ms.load_checkpoint(args.ckpt, net, strict_load=False)
 
     # create evaluation network
-    decoder = create_decoder(args.decoder_name, to_original=True)
+    decoder = create_decoder(args.decoder_name, **args.decoder_detail)
     net = create_eval_network(net, decoder, output_raw=False)
 
     for i, data in enumerate(dataset.create_dict_iterator(num_epochs=1)):

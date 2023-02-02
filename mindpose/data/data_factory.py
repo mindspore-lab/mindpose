@@ -76,6 +76,7 @@ def create_pipeline(
     normalize_mean: List[float] = [0.485, 0.456, 0.406],
     normalize_std: List[float] = [0.229, 0.224, 0.255],
     hwc_to_chw: bool = True,
+    num_workers: int = 1,
     config: Optional[Dict[str, Any]] = None,
 ) -> Dataset:
     """Create dataset tranform pipeline
@@ -90,6 +91,7 @@ def create_pipeline(
         normalize_mean: Mean of the normalization: Default: [0.485, 0.456, 0.406]
         normalize_std: Std of the normalization: Default: [0.229, 0.224, 0.255]
         hwc_to_chw: Wwap height x width x channel to channel x height x width. Default: True
+        num_workers: Number of workers in processing data. Default: 1
         config: Method-specific configuration.
 
     Returns:
@@ -108,10 +110,14 @@ def create_pipeline(
     )
 
     # decode
-    dataset = dataset.map(vision.Decode(), input_columns=["image"])
+    dataset = dataset.map(
+        vision.Decode(), input_columns=["image"], num_parallel_workers=num_workers
+    )
 
     # perform transformation on data and label
-    dataset = dataset.map(transform_funcs, input_columns=column_names)
+    dataset = dataset.map(
+        transform_funcs, input_columns=column_names, num_parallel_workers=num_workers
+    )
 
     # image normalization and swap channel
     image_funcs = []
@@ -123,7 +129,9 @@ def create_pipeline(
         image_funcs.append(vision.HWC2CHW())
 
     if image_funcs:
-        dataset = dataset.map(image_funcs, input_columns=["image"])
+        dataset = dataset.map(
+            image_funcs, input_columns=["image"], num_parallel_workers=num_workers
+        )
 
     # remove unessary outputs
     dataset = dataset.project(final_column_names)
