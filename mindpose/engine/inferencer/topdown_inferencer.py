@@ -14,19 +14,20 @@ from .inferencer import Inferencer
 
 @register("inferencer", extra_name="topdown_heatmap")
 class TopDownHeatMapInferencer(Inferencer):
-    """Create an inference engine for Topdown heatmap based method
+    """Create an inference engine for Topdown heatmap based method.
+    It runs the inference on the entire dataset and outputs a list of records.
 
     Args:
         net: Network for evaluation
         config: Method-specific configuration. Default: None
-        progress_bar: Show the progress bar during inferencing. Default: False
+        progress_bar: Display the progress bar during inferencing. Default: False
         decoder: Decoder cell. It is used for hflip TTA. Default: None
 
     Inputs:
-        dataset: Dataset
+        | dataset: Dataset
 
     Outputs:
-        records: List of inference records.
+        | records: List of inference records.
     """
 
     def __init__(
@@ -44,6 +45,12 @@ class TopDownHeatMapInferencer(Inferencer):
             raise ValueError("Decoder must be provided for flip TTA")
 
     def load_inference_cfg(self) -> Dict[str, Any]:
+        """Loading the inference config, where the returned config must be a dictionary
+        which stores the configuration of the engine, such as the using TTA, etc.
+
+        Returns:
+            Inference configurations
+        """
         inference_cfg = dict()
 
         inference_cfg["has_heatmap_output"] = self.config["has_heatmap_output"]
@@ -56,16 +63,23 @@ class TopDownHeatMapInferencer(Inferencer):
 
         return inference_cfg
 
-    def __call__(self, dataset: Dataset) -> List[Dict[str, Any]]:
+    def infer(self, dataset: Dataset) -> List[Dict[str, Any]]:
         """Running the inference on the dataset. And return a list of records.
         Normally, in order to be compatible with the evaluator engine,
         each record should contains the following keys:
 
         Keys:
-            pred: The predicted coordindate, in shape [M, (x_coord, y_coord, score)]
-            box: The coor bounding boxes, in shape [(center_x, center_y, scale_x, scale_y, area, bounding box score)]
-            image_path: The path of the image
-            bbox_id: Bounding box ID
+            | pred: The predicted coordindate, in shape [M, 3(x_coord, y_coord, score)]
+            | box: The coor bounding boxes, each record contains
+                (center_x, center_y, scale_x, scale_y, area, bounding box score)
+            | image_path: The path of the image
+            | bbox_id: Bounding box ID
+
+        Args:
+            dataset: Dataset for inferencing
+
+        Returns:
+            List of inference results
         """
         outputs = list()
         for data in tqdm(
@@ -87,7 +101,7 @@ class TopDownHeatMapInferencer(Inferencer):
                 _, flipped_heatmap = self.net(
                     flipped_image, data["center"], data["scale"], data["bbox_scores"]
                 )
-                flipped_heatmap = flip_back(
+                flipped_heatmap = _flip_back(
                     flipped_heatmap, self._inference_cfg["flip_pairs"].tolist()
                 )
 
@@ -117,7 +131,7 @@ class TopDownHeatMapInferencer(Inferencer):
         return outputs
 
 
-def flip_back(flipped_heatmap: Tensor, flip_pairs: List[Tuple[int, int]]) -> Tensor:
+def _flip_back(flipped_heatmap: Tensor, flip_pairs: List[Tuple[int, int]]) -> Tensor:
     """Flip the flipped heatmaps back to the original form."""
     flipped_heatmap_back = flipped_heatmap.copy()
 

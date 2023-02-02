@@ -8,13 +8,16 @@ import mindspore.nn as nn
 from mindspore import Tensor
 from mindspore.common import initializer as init
 
+__all__ = ["init_by_kaiming_uniform"]
+
 
 def _calculate_fan_in_and_fan_out(arr: Tensor) -> Tuple[int, int]:
     """Calculate fan in and fan out."""
     dimensions = len(arr.shape)
     if dimensions < 2:
         raise ValueError(
-            "Fan in and fan out can not be computed for array with fewer than 2 dimensions"
+            "Fan in and fan out can not be computed for array "
+            "with fewer than 2 dimensions"
         )
 
     num_input_fmaps = arr.shape[1]
@@ -29,7 +32,7 @@ def _calculate_fan_in_and_fan_out(arr: Tensor) -> Tuple[int, int]:
 
 
 def init_by_kaiming_uniform(network: nn.Cell) -> None:
-    """Initialize the network parameters by Kaiming Uniform
+    """Initialize the network parameters by Kaiming Uniform.
 
     Args:
         network: Network to initialize

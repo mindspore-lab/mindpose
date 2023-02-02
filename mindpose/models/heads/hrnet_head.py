@@ -13,18 +13,21 @@ from .head import Head
 @register("head", extra_name="hrnet_head")
 class HRNetHead(Head):
     r"""HRNet Head, based on
-    `"Deep High-Resolution Representation Learning for Human Pose Estimation" <https://arxiv.org/abs/1512.03385>`_
+    `"Deep High-Resolution Representation Learning for Human Pose Estimation"
+    <https://arxiv.org/abs/1512.03385>`_.
+    It is a 1x1 convoultion layer using the feature ouptput.
 
     Args:
         in_channels: Number the channels of the input. Default: 32.
         num_joints: Number of joints in the final output. Default: 17
-        final_conv_kernel_size: The kernel size in the final convolution layer. Default: 1
+        final_conv_kernel_size: The kernel size in the final convolution layer.
+            Default: 1
 
     Inputs:
-        x: Input Tensor
+        | x: Input Tensor
 
     Outputs:
-        result: Result Tensor
+        | result: Result Tensor
     """
 
     def __init__(

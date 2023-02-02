@@ -346,17 +346,22 @@ class HRModule(nn.Cell):
 @register("backbone")
 class HRNet(Backbone):
     r"""HRNet Backbone, based on
-    `"Deep High-Resolution Representation Learning for Human Pose Estimation" <https://arxiv.org/abs/1512.03385>`_
+    `"Deep High-Resolution Representation Learning for Human Pose Estimation"
+    <https://arxiv.org/abs/1512.03385>`_.
 
     Args:
-        stage_cfg: Configuration of the extra blocks
-        in_channels: Number the channels of the input. Default: 3.
+        stage_cfg: Configuration of the extra blocks. It accepts a dictionay storing
+            the detail config of each block. which include `num_modules`,
+            `num_branches`, `block`, `num_blocks`, `num_channels` and
+            `multiscale_output`. For detail example, please check the
+            implementation of `hrnet_w32` and `hrnet_w48`
+        in_channels: Number the channels of the input. Default: 3
 
     Inputs:
-        x: Input Tensor
+        | x: Input Tensor
 
     Outputs:
-        feature: Feature Tensor
+        | feature: Feature Tensor
     """
 
     blocks_dict = {"BASIC": BasicBlock, "BOTTLENECK": Bottleneck}
@@ -551,6 +556,14 @@ class HRNet(Backbone):
         return nn.SequentialCell(modules), num_inchannels
 
     def forward_feature(self, x: Tensor) -> Tensor:
+        """Perform the feature extraction.
+
+        Args:
+            x: Tensor
+
+        Returns:
+            Extracted feature
+        """
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -592,6 +605,11 @@ class HRNet(Backbone):
 
     @property
     def out_channels(self) -> int:
+        """Get number of output channels.
+
+        Returns:
+            Output channels.
+        """
         return self.stage4_cfg["num_channels"][0]
 
 
@@ -607,7 +625,7 @@ def hrnet_w32(
         in_channels: Number of input channels. Default: 3
 
     Returns:
-        HRNet: HRNet model
+        HRNet model
     """
     stage_cfg = dict(
         stage1=dict(
@@ -658,7 +676,7 @@ def hrnet_w48(
         in_channels: Number of input channels. Default: 3
 
     Returns:
-        HRNet: HRNet model
+        HRNet model
     """
     stage_cfg = dict(
         stage1=dict(

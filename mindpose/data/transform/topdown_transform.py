@@ -21,26 +21,40 @@ __all__ = [
 
 class TopDownTransform(Transform):
     """Transform the input data into the output data based on top-down approach.
-    This is an abstract class, child class must implement `transform` method.
 
     Args:
         is_train: Whether the transformation is for training/testing. Default: True
-        config: Method-specific configuration. Default: None
+        config: Method-specific configuration.  Default: None
 
     Inputs:
         data: Data tuples need to be transformed
 
     Outputs:
         result: Transformed data tuples
+
+    Note:
+        This is an abstract class, child class must implement `transform` method.
     """
 
     def setup_required_field(self) -> List[str]:
+        """Get the required columns names used for this transformation.
+        The columns names will be later used with Minspore Dataset `map` func.
+
+        Returns:
+            The column names
+        """
         if self.is_train:
             return COLUMN_MAP["topdown"]["train"]
         return COLUMN_MAP["topdown"]["val"]
 
     def load_transform_cfg(self) -> Dict[str, Any]:
-        """Loading the annoation info from the config file"""
+        """Loading the transform config, where the returned the config must
+        be a dictionary which stores the configuration of this transformation,
+        such as the transformed image size, etc.
+
+        Returns:
+            Transform configuration
+        """
         transform_cfg = dict()
         transform_cfg["image_size"] = np.array(self.config["image_size"])
         transform_cfg["heatmap_size"] = np.array(self.config["heatmap_size"])
@@ -57,24 +71,35 @@ class TopDownTransform(Transform):
 
 @register("transform", extra_name="topdown_affine_to_single")
 class TopDownAffineToSingle(TopDownTransform):
-    """Affine transform the image to output cropped images with single instance.
+    """Affine transform the image, and the transform image will
+    contain single instance only.
 
     Args:
         is_train: Whether the transformation is for training/testing. Default: True
         config: Method-specific configuration. Default: None
 
     Inputs:
-        data: Data tuples need to be transformed.
+        | data: Data tuples need to be transformed
 
     Outputs:
-        result: Transformed data tuples
+        | result: Transformed data tuples
     """
 
     def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Perform affine transform
+        """Transform the state into the transformed state. state is a dictionay
+        storing the informaton of the image and labels, the returned states is
+        the updated dictionary storing the updated image and labels.
 
-        Required `keys` in `state`: image, center, scale, rotation, keypoints (optional)
-        Output `keys` in transformed state`: image, keypoints (optional)
+        Args:
+            state: Stored information of image and labels
+
+        Returns:
+            Updated inforamtion of image and labels based on the transformation
+
+        Note:
+            | Required `keys` for transform: image, center, scale, rotation,
+                keypoints (optional)
+            | Returned `keys` after transform: image, keypoints (optional)
         """
         image_size = self._transform_cfg["image_size"]
         pixel_std = self._transform_cfg["pixel_std"]
@@ -110,21 +135,22 @@ class TopDownAffineToSingle(TopDownTransform):
 
 @register("transform", extra_name="topdown_generate_target")
 class TopDownGenerateTarget(TopDownTransform):
-    """Generate heatmap from the coordinates
+    """Generate heatmap from the coordinates.
 
     Args:
         is_train: Whether the transformation is for training/testing. Default: True
         config: Method-specific configuration. Default: None
         sigma: The sigmal size of gausian distribution. Default: 2.0
-        use_different_joint_weights: Use extra joint weight in target weight calculation. Default: False
+        use_different_joint_weights: Use extra joint weight in target weight
+            calculation. Default: False
         subpixel_center: When true, the center of the heatmap is in subpixel-level.
             Otherwise, the center is rounded to nearest pixel. Default: False
 
     Inputs:
-        data: Data tuples need to be transformed.
+        | data: Data tuples need to be transformed
 
     Outputs:
-        result: Transformed data tuples
+        | result: Transformed data tuples
     """
 
     def __init__(
@@ -141,12 +167,20 @@ class TopDownGenerateTarget(TopDownTransform):
         self.subpixel_center = subpixel_center
 
     def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate the heatmap
+        """Transform the state into the transformed state. state is a dictionay
+        storing the informaton of the image and labels, the returned states is
+        the updated dictionary storing the updated image and labels.
 
-        Required `keys` in `state`: keypoints
-        Output `keys` in transformed state`: taget, target_weight
+        Args:
+            state: Stored information of image and labels
+
+        Returns:
+            Updated inforamtion of image and labels based on the transformation
+
+        Note:
+            | Required `keys` for transform: keypoints
+            | Returned `keys` after transform: target, target_weight
         """
-
         image_size = self._transform_cfg["image_size"]
         W, H = self._transform_cfg["heatmap_size"]
         joint_weights = self._transform_cfg["joint_weights"]
@@ -189,7 +223,7 @@ class TopDownGenerateTarget(TopDownTransform):
 
 @register("transform", extra_name="topdown_horizontal_random_flip")
 class TopDownHorizontalRandomFlip(TopDownTransform):
-    """Perform randomly horizontal flip
+    """Perform randomly horizontal flip.
 
     Args:
         is_train: Whether the transformation is for training/testing. Default: True
@@ -197,10 +231,10 @@ class TopDownHorizontalRandomFlip(TopDownTransform):
         flip_prob: Probability of performing a horizontal flip. Default: 0.5
 
     Inputs:
-        data: Data tuples need to be transformed.
+        | data: Data tuples need to be transformed
 
     Outputs:
-        result: Transformed data tuples
+        | result: Transformed data tuples
     """
 
     def __init__(
@@ -213,10 +247,19 @@ class TopDownHorizontalRandomFlip(TopDownTransform):
         self.flip_prob = flip_prob
 
     def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Perform randomly horizontal flip
+        """Transform the state into the transformed state. state is a dictionay
+        storing the informaton of the image and labels, the returned states is
+        the updated dictionary storing the updated image and labels.
 
-        Required `keys` in `state`: image, keypoints, center
-        Output `keys` in transformed state`: image, keypoints, center
+        Args:
+            state: Stored information of image and labels
+
+        Returns:
+            Updated inforamtion of image and labels based on the transformation
+
+        Note:
+            | Required `keys` for transform: image, keypoints, center
+            | Returned `keys` after transform: image, keypoints, center
         """
         image = state["image"]
         keypoints = state["keypoints"]
@@ -242,15 +285,17 @@ class TopDownHalfBodyTransform(TopDownTransform):
     Args:
         is_train: Whether the transformation is for training/testing. Default: True
         config: Method-specific configuration. Default: None
-        num_joints_half_body: Threshold number of performing half-body transform. Default: 8
+        num_joints_half_body: Threshold number of performing half-body transform.
+            Default: 8
         prob_half_body: Probability of performing half-body transform. Default: 0.3
-        scale_padding: Extra scale padding multiplier in generating the cropped images. Default: 1.5
+        scale_padding: Extra scale padding multiplier in generating the cropped images.
+            Default: 1.5
 
     Inputs:
-        data: Data tuples need to be transformed.
+        | data: Data tuples need to be transformed
 
     Outputs:
-        result: Transformed data tuples
+        | result: Transformed data tuples
     """
 
     def __init__(
@@ -269,7 +314,7 @@ class TopDownHalfBodyTransform(TopDownTransform):
     def half_body_transform(
         self, keypoints: np.ndarray, num_joints: int = 17
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """Get center&scale for half-body transform."""
+        # Get center and scale for half-body transform
         upper_joints = []
         lower_joints = []
         for joint_id in range(num_joints):
@@ -319,10 +364,19 @@ class TopDownHalfBodyTransform(TopDownTransform):
         return center, scale
 
     def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Perform half-body transform.
+        """Transform the state into the transformed state. state is a dictionay
+        storing the informaton of the image and labels, the returned states is
+        the updated dictionary storing the updated image and labels.
 
-        Required `keys` in `state`: keypoints
-        Output `keys` in transformed state`: center, scale
+        Args:
+            state: Stored information of image and labels
+
+        Returns:
+            Updated inforamtion of image and labels based on the transformation
+
+        Note:
+            | Required `keys` for transform: keypoints
+            | Returned `keys` after transform: image, center, scale
         """
         keypoints = state["keypoints"]
         num_joints = keypoints.shape[0]
@@ -345,7 +399,7 @@ class TopDownHalfBodyTransform(TopDownTransform):
 
 @register("transform", extra_name="topdown_randomscale_rotation")
 class TopDownRandomScaleRotation(TopDownTransform):
-    """Perform random scaling and rotations
+    """Perform random scaling and rotation.
 
     Args:
         is_train: Whether the transformation is for training/testing. Default: True
@@ -355,10 +409,10 @@ class TopDownRandomScaleRotation(TopDownTransform):
         rot_prob: Probability of performing rotation. Default: 0.6
 
     Inputs:
-        data: Data tuples need to be transformed.
+        | data: Data tuples need to be transformed
 
     Outputs:
-        result: Transformed data tuples
+        | result: Transformed data tuples
     """
 
     def __init__(
@@ -375,10 +429,19 @@ class TopDownRandomScaleRotation(TopDownTransform):
         self.rot_prob = rot_prob
 
     def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Perform random rotation and scaling
+        """Transform the state into the transformed state. state is a dictionay
+        storing the informaton of the image and labels, the returned states is
+        the updated dictionary storing the updated image and labels.
 
-        Required `keys` in `state`: "scale"
-        Output `keys` in transformed state`: scale, rotation
+        Args:
+            state: Stored information of image and labels
+
+        Returns:
+            Updated inforamtion of image and labels based on the transformation
+
+        Note:
+            | Required `keys` for transform: scale
+            | Returned `keys` after transform: scale, rotation
         """
         s = state["scale"]
 

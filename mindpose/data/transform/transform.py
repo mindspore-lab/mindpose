@@ -5,8 +5,6 @@ import numpy as np
 
 class Transform:
     """Transform the input data into the output data.
-    This is an abstract class, child class must implement `load_transform_cfg`,
-    `transform` and `setup_required_field` method.
 
     Args:
         is_train: Whether the transformation is for training/testing. Default: True
@@ -17,6 +15,10 @@ class Transform:
 
     Outputs:
         result: Transformed data tuples
+
+    Note:
+        This is an abstract class, child class must implement `load_transform_cfg`,
+        `transform` and `setup_required_field` method.
     """
 
     def __init__(
@@ -30,21 +32,34 @@ class Transform:
         self._required_field = self.setup_required_field()
 
     def load_transform_cfg(self) -> Dict[str, Any]:
-        """Loading the transform config, where the returned the config must be a dictionary
-        which stores the configuration of this transformation, such as the transformed image_size, etc.
+        """Loading the transform config, where the returned the config must
+        be a dictionary which stores the configuration of this transformation,
+        such as the transformed image size, etc.
+
+        Returns:
+            Transform configuration
         """
         raise NotImplementedError("Child class must implement this method.")
 
     def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Transform the state into the transformed state.
-        state is a dictionay storing the informaton of the image and groundtruth
-        the returned states is the updated dictionary storing the updated image and groundtruth
+        """Transform the state into the transformed state. state is a dictionay
+        storing the informaton of the image and labels, the returned states is
+        the updated dictionary storing the updated image and labels.
+
+        Args:
+            state: Stored information of image and labels
+
+        Returns:
+            Updated inforamtion of image and labels based on the transformation
         """
         raise NotImplementedError("Child class must implement this method.")
 
     def setup_required_field(self) -> List[str]:
         """Get the required columns names used for this transformation.
         The columns names will be later used with Minspore Dataset `map` func.
+
+        Returns:
+            The column names
         """
         raise NotImplementedError("Child class must implement this method.")
 

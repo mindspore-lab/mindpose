@@ -3,6 +3,8 @@ from typing import Any, List, Union
 from mindspore.nn.learning_rate_schedule import LearningRateSchedule
 from mindspore.nn.optim import Adam, Optimizer, SGD
 
+__all__ = ["create_optimizer"]
+
 
 def create_optimizer(
     params: List[Any],
@@ -24,7 +26,7 @@ def create_optimizer(
         momentum: momentum in SGD. Default: 0.9
 
     Returns:
-        optimizer: Optimizer
+        Optimizer
     """
     if name == "adam":
         return Adam(

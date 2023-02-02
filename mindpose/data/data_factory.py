@@ -10,6 +10,9 @@ from .column_names import COLUMN_MAP, FINAL_COLUMN_MAP
 from .transform import Transform
 
 
+__all__ = ["create_dataset", "create_pipeline"]
+
+
 def create_dataset(
     image_root: str,
     annotation_file: str,
@@ -22,22 +25,24 @@ def create_dataset(
     num_workers: int = 1,
     config: Optional[Dict[str, Any]] = None,
 ) -> GeneratorDataset:
-    """Create dataset.
+    """Create dataset for training or evaluation.
 
     Args:
         image_root: The path of the directory storing images
         annotation_file: The path of the annotation file
-        dataset_format: The dataset format. Different format yield different final output. Default: `coco_topdown`
+        dataset_format: The dataset format. Different format yield
+            different final output. Default: `coco_topdown`
         is_train: Wether this dataset is used for training/testing: Default: True
-        use_gt_bbox_for_val: Use GT bbox instead of detection result during evaluation. Default: False
-        detection_file: Path of the detection result. Defaul: None
+        use_gt_bbox_for_val: Use GT bbox instead of detection result
+            during evaluation. Default: False
+        detection_file: Path of the detection result. Default: None
         device_num: Number of devices (e.g. GPU). Default: None
         rank_id: Current process's rank id. Default: None
         num_workers: Number of workers in reading data. Default: 1
-        config: Dataset-specific configuration.
+        config: Dataset-specific configuration
 
     Returns:
-        dataset: GeneratorDataset
+        Dataset for training or evaluation
     """
     dataset = entrypoint("dataset", dataset_format)(
         image_root,
@@ -79,23 +84,25 @@ def create_pipeline(
     num_workers: int = 1,
     config: Optional[Dict[str, Any]] = None,
 ) -> Dataset:
-    """Create dataset tranform pipeline
+    """Create dataset tranform pipeline. The returned datatset is transformed
+    sequentially based on the given list of transforms.
 
     Args:
         dataset: Dataset to perform transformations
         transforms: List of transformations
-        method: The method to use. Default: "Topdown"
+        method: The method to use. Default: "topdown"
         batch_size: Batch size. Default: 1
         is_train: Whether the transformation is for training/testing. Default: True
         normalize: Perform normalization. Default: True
         normalize_mean: Mean of the normalization: Default: [0.485, 0.456, 0.406]
         normalize_std: Std of the normalization: Default: [0.229, 0.224, 0.255]
-        hwc_to_chw: Wwap height x width x channel to channel x height x width. Default: True
+        hwc_to_chw: Wwap height x width x channel to
+            channel x height x width. Default: True
         num_workers: Number of workers in processing data. Default: 1
-        config: Method-specific configuration.
+        config: Transform-specific configuration
 
     Returns:
-        dataset: Dataset
+        The transformed dataset
     """
     if is_train:
         column_names = COLUMN_MAP[method]["train"]

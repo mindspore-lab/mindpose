@@ -16,7 +16,7 @@ def fliplr_joints(
             (for example, left ear -- right ear).
 
     Returns:
-        keypoints_flipped: Flipped human joints.
+        Flipped human joints.
     """
     assert img_width > 0
 
@@ -55,7 +55,7 @@ def get_affine_transform(
         pixel_std: The scaling factor. Default: 200.
 
     Returns:
-        trans: The transform matrix.
+        The transform matrix.
     """
     assert len(center) == 2
     assert len(scale) == 2
@@ -99,7 +99,7 @@ def affine_transform(pt: Tuple[float, float], trans_mat: np.ndarray) -> np.ndarr
         trans_mat: 2x3 matrix of an affine transform
 
     Returns:
-        new_pt: Transformed points.
+        Transformed points.
     """
     assert len(pt) == 2
     new_pt = np.array(trans_mat) @ np.array([pt[0], pt[1], 1.0])
@@ -115,7 +115,7 @@ def rotate_point(pt: Tuple[float, float], angle_rad: float) -> Tuple[float, floa
         angle_rad: rotation angle by radian
 
     Returns:
-        list[float]: Rotated point.
+        Rotated point.
     """
     assert len(pt) == 2
     sn, cs = np.sin(angle_rad), np.cos(angle_rad)
@@ -138,7 +138,7 @@ def _get_3rd_point(a: np.ndarray, b: np.ndarray) -> np.ndarray:
         b: point(x,y)
 
     Returns:
-        third_pt: The 3rd point.
+        The 3rd point.
     """
     assert len(a) == 2
     assert len(b) == 2

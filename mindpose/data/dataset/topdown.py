@@ -6,30 +6,35 @@ import numpy as np
 
 class TopDownDataset:
     """Create an iterator for TopDown dataset,
-    return the tuple with image, center, scale, keypoints, rotation, target, target_weight for training,
-    return the tuple with image, center, scale, rotation, image_file, box, box_id, box_score for evaluation.
-    This is an abstract class, child class must implement `load_dataset_cfg` and `load_dataset` method.
+    return the tuple with (image, center, scale, keypoints, rotation,
+    target, target_weight) for training; return the tuple with (image,
+    center, scale, rotation, image_file, box, box_id, box_score) for evaluation
 
     Args:
         image_root: The path of the directory storing images
         annotation_file: The path of the annotation file
         is_train: Wether this dataset is used for training/testing
-        use_gt_bbox_for_val: Use GT bbox instead of detection result during evaluation. Default: False
+        use_gt_bbox_for_val: Use GT bbox instead of detection result
+            during evaluation. Default: False
         detection_file: Path of the detection result. Defaul: None
         config: Method-specific configuration.
 
-    Returns:
-        image: Encoded data for image file
-        center: Center (x, y) of the bounding box
-        scale: Scale of the bounding box
-        keypoints: Keypoints in (x, y, visibility)
-        rotation: Rotatated degree
-        target: A placeholder for later pipline using
-        target_weight: A placeholder of later pipline using
-        image_file: Path of the image file
-        bbox: Bounding box coordinate (x, y, w, h)
-        bbox_id: Bounding box id for each single image
-        bbox_score: Bounding box score, 1 for ground truth
+    Item key in iterator:
+        | image: Encoded data for image file
+        | center: Center (x, y) of the bounding box
+        | scale: Scale of the bounding box
+        | keypoints: Keypoints in (x, y, visibility)
+        | rotation: Rotatated degree
+        | target: A placeholder for later pipline using
+        | target_weight: A placeholder of later pipline using
+        | image_file: Path of the image file
+        | bbox: Bounding box coordinate (x, y, w, h)
+        | bbox_id: Bounding box id for each single image
+        | bbox_score: Bounding box score, 1 for ground truth
+
+    Note:
+        This is an abstract class, child class must implement
+        `load_dataset_cfg` and `load_dataset` method.
     """
 
     def __init__(
@@ -53,26 +58,33 @@ class TopDownDataset:
         if self.annotation_file is None:
             if not self.is_train and not self.use_gt_bbox_for_val:
                 raise ValueError(
-                    "For evaluation, `detection_file` must be provided when `use_gt_bbox_for_val` is `False`"
+                    "For evaluation, `detection_file` must be provided "
+                    "when `use_gt_bbox_for_val` is `False`"
                 )
 
     def load_dataset_cfg(self) -> Dict[str, Any]:
         """Loading the dataset config, where the returned config must be a dictionary
         which stores the configuration of the dataset, such as the image_size, etc.
+
+        Returns:
+            Dataset configurations
         """
         raise NotImplementedError("Child class must implement this method.")
 
     def load_dataset(self) -> List[Dict[str, Any]]:
-        """Loading the dataset, where the returned record should containes the following key
+        """Loading the dataset, where the returned record should contain the following key
 
         Keys:
-            image_file: Path of the image file
-            center: Center (x, y) of the bounding box
-            scale: Scale of the bounding box
-            bbox: Bounding box coordinate (x, y, w, h)
-            keypoints: Keypoints in (x, y, visibility)
-            bbox_score: Bounding box score, 1 for ground truth
-            bbox_id: Bounding box id for each single image
+            | image_file: Path of the image file
+            | center: Center (x, y) of the bounding box
+            | scale: Scale of the bounding box
+            | bbox: Bounding box coordinate (x, y, w, h)
+            | keypoints: Keypoints in (x, y, visibility)
+            | bbox_score: Bounding box score, 1 for ground truth
+            | bbox_id: Bounding box id for each single image
+
+        Returns:
+            A list of records of groundtruth or predictions
         """
         raise NotImplementedError("Child class must implement this method.")
 

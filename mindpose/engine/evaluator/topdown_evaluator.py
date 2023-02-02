@@ -15,14 +15,17 @@ from .evaluator import Evaluator
 
 @register("evaluator", extra_name="topdown")
 class TopDownEvaluator(Evaluator):
-    """Create an evaluator based on Topdown method
+    """Create an evaluator based on Topdown method. It performs the model
+    evaluation based on the inference result (a list of records), and
+    outputs with the metirc result.
 
     Args:
         annotation_file: Path of the annotation file. It only supports COCO-format.
         metric: Supported metrics. Default: "AP"
         num_joints: Number of joints. Default: 17
         config: Method-specific configuration. Default: None
-        remove_result_file: Remove the cached result file after evaluation. Default: True
+        remove_result_file: Remove the cached result file
+            after evaluation. Default: True
         result_path: Path of the result file. Default: "./result_keypoints.json"
 
     Inputs:
@@ -57,6 +60,12 @@ class TopDownEvaluator(Evaluator):
         self._class_to_coco_ind = dict(zip(cats, cat_ids))
 
     def load_evaluation_cfg(self) -> Dict[str, Any]:
+        """Loading the evaluation config, where the returned config must be a dictionary
+        which stores the configuration of the engine, such as the using soft-nms, etc.
+
+        Returns:
+            Evaluation configurations
+        """
         evaluation_cfg = dict()
         evaluation_cfg["vis_thr"] = self.config["vis_thr"]
         evaluation_cfg["oks_thr"] = self.config["oks_thr"]
@@ -69,8 +78,15 @@ class TopDownEvaluator(Evaluator):
         coco = COCO(annotation_file=annotation_file)
         return coco
 
-    def __call__(self, inference_result: Dict[str, Any]) -> Dict[str, Any]:
-        """Evaluate coco keypoint results."""
+    def eval(self, inference_result: Dict[str, Any]) -> Dict[str, Any]:
+        """Running the evaluation base on the inference result. Output the metric result.
+
+        Args:
+            inference_result: List of inference records
+
+        Returns:
+            metric result. Such as AP.5, etc.
+        """
         kpts = defaultdict(list)
 
         for record in inference_result:

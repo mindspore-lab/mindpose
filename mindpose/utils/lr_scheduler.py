@@ -9,16 +9,28 @@ from mindspore.nn.learning_rate_schedule import LearningRateSchedule
 from ..register import entrypoint, register
 
 
+__all__ = ["WarmupCosineDecayLR", "WarmupMultiStepDecayLR", "create_lr_scheduler"]
+
+
 @register("lr_scheduler", extra_name="warmup_cosine_decay")
 class WarmupCosineDecayLR(LearningRateSchedule):
-    """CosineDecayLR with warmup
+    """CosineDecayLR with warmup.
+
     Args:
+
         max_lr: Upper lr bound for 'WarmupCosineDecayLR' schedulers.
         total_epochs: The number of total epochs of learning rate.
         steps_per_epoch: The number of steps per epoch.
-        warmup: If it is a interger, it means the number of warm up steps of learning rate.
-            If it is a decimal number, it means the fraction of total steps to warm up. Default = 0
+        warmup: If it is a interger, it means the number of warm up steps of
+            learning rate. If it is a decimal number, it means the fraction of
+            total steps to warm up. Default = 0
         min_lr: Lower lr bound for 'WarmupCosineDecayLR' schedulers. Default = 0
+
+    Inputs:
+        | global_step: Global step
+
+    Outpus:
+        | lr: Learning rate at that step
     """
 
     def __init__(
@@ -67,15 +79,23 @@ class WarmupCosineDecayLR(LearningRateSchedule):
 
 @register("lr_scheduler", extra_name="warmup_multi_step_decay")
 class WarmupMultiStepDecayLR(LearningRateSchedule):
-    """Multi-step decay with warmup
+    """Multi-step decay with warmup.
+
     Args:
         max_lr: Upper lr bound for 'WarmupCosineDecayLR' schedulers.
         total_epochs: The number of total epochs of learning rate.
         steps_per_epoch: The number of steps per epoch.
         milestones: The epoch number where the learning rate dacay by one time
         decay_rate: Decay rate. Default = 0.1
-        warmup: If it is a interger, it means the number of warm up steps of learning rate.
-            If it is a decimal number, it means the fraction of total steps to warm up. Default = 0
+        warmup: If it is a interger, it means the number of warm up steps of
+            learning rate. If it is a decimal number, it means the fraction of
+            total steps to warm up. Default = 0
+
+    Inputs:
+        | global_step: Global step
+
+    Outpus:
+        | lr: Learning rate at that step
     """
 
     def __init__(
@@ -136,6 +156,6 @@ def create_lr_scheduler(
         kwargs: Arguments feed into the corresponding scheduler
 
     Returns:
-        scheduler: Learning rate scheduler
+        Learning rate scheduler
     """
     return entrypoint("lr_scheduler", name)(**kwargs)

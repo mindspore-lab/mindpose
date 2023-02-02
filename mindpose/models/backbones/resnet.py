@@ -70,8 +70,9 @@ class BasicBlock(nn.Cell):
 
 class Bottleneck(nn.Cell):
     """
-    Bottleneck here places the stride for downsampling at 3x3 convolution(self.conv2) as torchvision does,
-    while original implementation places the stride at the first 1x1 convolution(self.conv1)
+    Bottleneck here places the stride for downsampling at 3x3convolution(self.conv2)
+    as torchvision does, while original implementation places the stride at the first
+    1x1 convolution(self.conv1)
     """
 
     expansion: int = 4
@@ -137,21 +138,22 @@ class Bottleneck(nn.Cell):
 @register("backbone")
 class ResNet(Backbone):
     r"""ResNet model class, based on
-    `"Deep Residual Learning for Image Recognition" <https://arxiv.org/abs/1512.03385>`_
+    `"Deep Residual Learning for Image Recognition"
+    <https://arxiv.org/abs/1512.03385>`_.
 
     Args:
-        block: Block of resnet.
-        layers: Number of layers of each stage.
-        in_channels: Number the channels of the input. Default: 3.
-        groups: Number of groups for group conv in blocks. Default: 1.
-        base_width: Base width of pre group hidden channel in blocks. Default: 64.
-        norm: Normalization layer in blocks. Default: None.
+        block: Block of resnet
+        layers: Number of layers of each stage
+        in_channels: Number the channels of the input. Default: 3
+        groups: Number of groups for group conv in blocks. Default: 1
+        base_width: Base width of pre group hidden channel in blocks. Default: 64
+        norm: Normalization layer in blocks. Default: None
 
     Inputs:
-        x: Input Tensor
+        | x: Input Tensor
 
     Outputs:
-        feature: Feature Tensor
+        | feature: Feature Tensor
     """
 
     def __init__(
@@ -238,7 +240,15 @@ class ResNet(Backbone):
 
         return nn.SequentialCell(layers)
 
-    def forward_features(self, x: Tensor) -> Tensor:
+    def forward_feature(self, x: Tensor) -> Tensor:
+        """Perform the feature extraction.
+
+        Args:
+            x: Tensor
+
+        Returns:
+            Extracted feature
+        """
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -252,6 +262,11 @@ class ResNet(Backbone):
 
     @property
     def out_channels(self) -> int:
+        """Get number of output channels.
+
+        Returns:
+            Output channels.
+        """
         return 512 * Bottleneck.expansion
 
 
@@ -268,7 +283,7 @@ def resnet50(
         kwargs: Arguments which feed into Resnet class
 
     Returns:
-        ResNet: Resnet model
+        Resnet model
     """
     model = ResNet(Bottleneck, [3, 4, 6, 3], in_channels=in_channels, **kwargs)
 
@@ -288,7 +303,7 @@ def resnet101(
         kwargs: Arguments which feed into Resnet class
 
     Returns:
-        ResNet: Resnet model
+        Resnet model
     """
     model = ResNet(Bottleneck, [3, 4, 23, 3], in_channels=in_channels, **kwargs)
 
@@ -299,7 +314,7 @@ def resnet101(
 def resnet152(
     pretrained: bool = False, ckpt_url: str = "", in_channels: int = 3, **kwargs
 ) -> ResNet:
-    """Get 101 layers ResNet model.
+    """Get 152 layers ResNet model.
 
     Args:
         pretrained: Whether the model is pretrained. Default: False
@@ -308,7 +323,7 @@ def resnet152(
         kwargs: Arguments which feed into Resnet class
 
     Returns:
-        ResNet: Resnet model
+        Resnet model
     """
     model = ResNet(Bottleneck, [3, 8, 36, 3], in_channels=in_channels, **kwargs)
 

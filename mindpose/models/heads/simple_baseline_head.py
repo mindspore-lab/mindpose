@@ -16,21 +16,25 @@ from .head import Head
 @register("head", extra_name="simple_baseline_head")
 class SimpleBaselineHead(Head):
     r"""SimpleBaseline Head, based on
-    `"Simple Baselines for Human Pose Estimation and Tracking" <https://arxiv.org/abs/1804.06208>`_
+    `"Simple Baselines for Human Pose Estimation and Tracking"
+    <https://arxiv.org/abs/1804.06208>`_.
+    It contains few number of deconvolution layers following by a 1x1 convolution layer.
 
     Args:
         num_deconv_layers: Number of deconvolution layers. Default: 3
-        num_deconv_filters: Number of filters in each deconvolution layer. Default: [256, 256, 256]
+        num_deconv_filters: Number of filters in each deconvolution layer.
+            Default: [256, 256, 256]
         num_deconv_kernels: Kernel size in each deconvolution layer. Default: [4, 4, 4]
         in_channels: number the channels of the input. Default: 2048.
         num_joints: Number of joints in the final output. Default: 17
-        final_conv_kernel_size: The kernel size in the final convolution layer. Default: 1
+        final_conv_kernel_size: The kernel size in the final convolution layer.
+            Default: 1
 
     Inputs:
-        x: Input Tensor
+        | x: Input Tensor
 
     Outputs:
-        result: Result Tensor
+        | result: Result Tensor
     """
 
     def __init__(
