@@ -240,7 +240,7 @@ class ResNet(Backbone):
 
         return nn.SequentialCell(layers)
 
-    def forward_features(self, x: Tensor) -> Tensor:
+    def forward_feature(self, x: Tensor) -> Tensor:
         """Perform the feature extraction.
 
         Args:
