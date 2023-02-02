@@ -15,8 +15,7 @@ import mindspore as ms
 from common.config import parse_args
 from mindpose.callbacks import EvalCallback
 from mindpose.data import create_dataset, create_pipeline
-from mindpose.engine.evaluators import create_evaluator
-from mindpose.engine.inferencer import create_inferencer
+from mindpose.engine import create_evaluator, create_inferencer
 from mindpose.models import (
     create_decoder,
     create_eval_network,
@@ -47,6 +46,7 @@ def train(args: Namespace) -> None:
             device_num=device_num,
             parallel_mode="data_parallel",
             gradients_mean=True,
+            parameter_broadcast=True,
         )
 
         if "DEVICE_ID" in os.environ:
@@ -89,6 +89,7 @@ def train(args: Namespace) -> None:
         is_train=True,
         normalize_mean=args.normalize_mean,
         normalize_std=args.normalize_std,
+        num_workers=args.num_parallel_workers,
         config=args.dataset_detail,
     )
 
@@ -100,6 +101,7 @@ def train(args: Namespace) -> None:
         is_train=False,
         normalize_mean=args.normalize_mean,
         normalize_std=args.normalize_std,
+        num_workers=args.num_parallel_workers,
         config=args.dataset_detail,
     )
 
@@ -118,11 +120,11 @@ def train(args: Namespace) -> None:
         init_by_kaiming_uniform(net)
 
     # create evaluation network
-    decoder = create_decoder(args.decoder_name)
+    decoder = create_decoder(args.decoder_name, **args.decoder_detail)
     val_net = create_eval_network(net, decoder)
 
     # create loss
-    loss = create_loss(args.loss, **args.loss_args)
+    loss = create_loss(args.loss, **args.loss_detail)
 
     # create net_with_loss
     net_with_loss = create_network_with_loss(
@@ -145,7 +147,7 @@ def train(args: Namespace) -> None:
         total_epochs=args.num_epochs,
         steps_per_epoch=train_dataset.get_dataset_size(),
         warmup=args.warmup,
-        **args.scheduler_args,
+        **args.scheduler_detail,
     )
 
     # create optimizer
@@ -154,7 +156,8 @@ def train(args: Namespace) -> None:
         name=args.optimizer,
         learning_rate=lr_scheduler,
         loss_scale=args.loss_scale,
-        **args.optimizer_args,
+        weight_decay=args.weight_decay,
+        momentum=args.momentum,
     )
 
     # create model
@@ -172,15 +175,18 @@ def train(args: Namespace) -> None:
     inferencer = create_inferencer(
         net=val_net,
         name=args.inference_method,
-        config=args.eval_args,
+        config=args.eval_detail,
+        dataset_config=args.dataset_detail,
         decoder=decoder,
     )
 
     keypoint_result_tmp_path = os.path.join(args.outdir, "result_keypoint.json")
     evaluator = create_evaluator(
-        args.eval_method,
-        config=args.eval_args,
         annotation_file=args.val_label,
+        name=args.eval_method,
+        metric=args.eval_metric,
+        config=args.eval_detail,
+        dataset_config=args.dataset_detail,
         result_path=keypoint_result_tmp_path,
     )
 

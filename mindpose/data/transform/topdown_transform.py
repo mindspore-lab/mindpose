@@ -77,9 +77,14 @@ class TopDownAffineToSingle(TopDownTransform):
         Output `keys` in transformed state`: image, keypoints (optional)
         """
         image_size = self._transform_cfg["image_size"]
+        pixel_std = self._transform_cfg["pixel_std"]
 
         trans = get_affine_transform(
-            state["center"], state["scale"], state["rotation"], image_size
+            state["center"],
+            state["scale"],
+            state["rotation"],
+            image_size,
+            pixel_std=pixel_std,
         )
 
         transformed_state = dict()
@@ -112,6 +117,8 @@ class TopDownGenerateTarget(TopDownTransform):
         config: Method-specific configuration. Default: None
         sigma: The sigmal size of gausian distribution. Default: 2.0
         use_different_joint_weights: Use extra joint weight in target weight calculation. Default: False
+        subpixel_center: When true, the center of the heatmap is in subpixel-level.
+            Otherwise, the center is rounded to nearest pixel. Default: False
 
     Inputs:
         data: Data tuples need to be transformed.
@@ -126,10 +133,12 @@ class TopDownGenerateTarget(TopDownTransform):
         config: Optional[Dict[str, Any]] = None,
         sigma: float = 2.0,
         use_different_joint_weights: bool = False,
+        subpixel_center: bool = False,
     ) -> None:
         super().__init__(is_train=is_train, config=config)
         self.sigma = sigma
         self.use_different_joint_weights = use_different_joint_weights
+        self.subpixel_center = subpixel_center
 
     def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Generate the heatmap
@@ -154,33 +163,22 @@ class TopDownGenerateTarget(TopDownTransform):
             target_weight[joint_id] = keypoints[joint_id, 2]
 
             feat_stride = image_size / np.array([W, H])
-            mu_x = int(keypoints[joint_id][0] / feat_stride[0] + 0.5)
-            mu_y = int(keypoints[joint_id][1] / feat_stride[1] + 0.5)
+            mu_x = keypoints[joint_id][0] / feat_stride[0]
+            mu_y = keypoints[joint_id][1] / feat_stride[1]
+            if not self.subpixel_center:
+                mu_x, mu_y = round(mu_x), round(mu_y)
+
             # Check that any part of the gaussian is in-bounds
-            ul = [int(mu_x - tmp_size), int(mu_y - tmp_size)]
-            br = [int(mu_x + tmp_size + 1), int(mu_y + tmp_size + 1)]
+            ul = [mu_x - tmp_size, mu_y - tmp_size]
+            br = [mu_x + tmp_size, mu_y + tmp_size]
             if ul[0] >= W or ul[1] >= H or br[0] < 0 or br[1] < 0:
                 target_weight[joint_id] = 0
 
             if target_weight[joint_id] > 0.5:
-                size = 2 * tmp_size + 1
-                x = np.arange(0, size, 1, np.float32)
-                y = x[:, None]
-                x0, y0 = size // 2, size // 2
-                # The gaussian is not normalized,
-                # we want the center value to equal 1
-                g = np.exp(-((x - x0) ** 2 + (y - y0) ** 2) / (2 * self.sigma**2))
-
-                # Usable gaussian range
-                g_x = max(0, -ul[0]), min(br[0], W) - ul[0]
-                g_y = max(0, -ul[1]), min(br[1], H) - ul[1]
-                # Image range
-                img_x = max(0, ul[0]), min(br[0], W)
-                img_y = max(0, ul[1]), min(br[1], H)
-
-                target[joint_id][img_y[0] : img_y[1], img_x[0] : img_x[1]] = g[
-                    g_y[0] : g_y[1], g_x[0] : g_x[1]
-                ]
+                x = np.arange(W, dtype=np.float32)
+                y = np.arange(H, dtype=np.float32)[:, None]
+                g = np.exp(-((x - mu_x) ** 2 + (y - mu_y) ** 2) / (2 * self.sigma**2))
+                target[joint_id] = g
 
         if self.use_different_joint_weights:
             target_weight = np.multiply(target_weight, joint_weights)

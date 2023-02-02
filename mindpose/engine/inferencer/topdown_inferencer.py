@@ -1,17 +1,34 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 import mindspore as ms
+import numpy as np
 from mindspore import Tensor
 from mindspore.dataset import Dataset
 from tqdm import tqdm
 
 from ...models import EvalNet
-
 from ...models.decoders import TopDownHeatMapDecoder
+from ...register import register
 from .inferencer import Inferencer
 
 
+@register("inferencer", extra_name="topdown_heatmap")
 class TopDownHeatMapInferencer(Inferencer):
+    """Create an inference engine for Topdown heatmap based method
+
+    Args:
+        net: Network for evaluation
+        config: Method-specific configuration. Default: None
+        progress_bar: Show the progress bar during inferencing. Default: False
+        decoder: Decoder cell. It is used for hflip TTA. Default: None
+
+    Inputs:
+        dataset: Dataset
+
+    Outputs:
+        records: List of inference records.
+    """
+
     def __init__(
         self,
         net: EvalNet,
@@ -23,39 +40,33 @@ class TopDownHeatMapInferencer(Inferencer):
         self.progress_bar = progress_bar
         self.decoder = decoder
 
-        if (
-            self._inference_cfg["hflip_tta"]
-            and not self._inference_cfg["has_heatmap_output"]
-        ):
-            raise ValueError("flip TTA need heatmap output.")
-
         if self.decoder is None and self._inference_cfg["hflip_tta"]:
             raise ValueError("Decoder must be provided for flip TTA")
 
     def load_inference_cfg(self) -> Dict[str, Any]:
-        """Loading the annoation info from the config file"""
         inference_cfg = dict()
 
-        inference_cfg["has_heatmap_output"] = self.config.get(
-            "has_heatmap_output", True
-        )
-        inference_cfg["hflip_tta"] = self.config.get("hflip_tta", False)
-        inference_cfg["shift_heatmap"] = self.config.get("shift_heatmap", False)
+        inference_cfg["has_heatmap_output"] = self.config["has_heatmap_output"]
+        inference_cfg["hflip_tta"] = self.config["hflip_tta"]
+        inference_cfg["shift_heatmap"] = self.config["shift_heatmap"]
+        inference_cfg["flip_pairs"] = np.array(self.config["flip_pairs"])
 
-        # TODO: read array from config
-        inference_cfg["flip_pairs"] = [
-            [1, 2],
-            [3, 4],
-            [5, 6],
-            [7, 8],
-            [9, 10],
-            [11, 12],
-            [13, 14],
-            [15, 16],
-        ]
+        if inference_cfg["hflip_tta"] and not inference_cfg["has_heatmap_output"]:
+            raise ValueError("flip TTA need heatmap output.")
+
         return inference_cfg
 
     def __call__(self, dataset: Dataset) -> List[Dict[str, Any]]:
+        """Running the inference on the dataset. And return a list of records.
+        Normally, in order to be compatible with the evaluator engine,
+        each record should contains the following keys:
+
+        Keys:
+            pred: The predicted coordindate, in shape [M, (x_coord, y_coord, score)]
+            box: The coor bounding boxes, in shape [(center_x, center_y, scale_x, scale_y, area, bounding box score)]
+            image_path: The path of the image
+            bbox_id: Bounding box ID
+        """
         outputs = list()
         for data in tqdm(
             dataset.create_dict_iterator(num_epochs=1),
@@ -77,7 +88,7 @@ class TopDownHeatMapInferencer(Inferencer):
                     flipped_image, data["center"], data["scale"], data["bbox_scores"]
                 )
                 flipped_heatmap = flip_back(
-                    flipped_heatmap, self._inference_cfg["flip_pairs"]
+                    flipped_heatmap, self._inference_cfg["flip_pairs"].tolist()
                 )
 
                 if self._inference_cfg["shift_heatmap"]:
@@ -108,18 +119,13 @@ class TopDownHeatMapInferencer(Inferencer):
 
 def flip_back(flipped_heatmap: Tensor, flip_pairs: List[Tuple[int, int]]) -> Tensor:
     """Flip the flipped heatmaps back to the original form."""
-    shape_ori = flipped_heatmap.shape
-    channels = 1
-    flipped_heatmap = flipped_heatmap.reshape(
-        shape_ori[0], -1, channels, shape_ori[2], shape_ori[3]
-    )
     flipped_heatmap_back = flipped_heatmap.copy()
 
     # Swap left-right parts
     for left, right in flip_pairs:
         flipped_heatmap_back[:, left, ...] = flipped_heatmap[:, right, ...]
         flipped_heatmap_back[:, right, ...] = flipped_heatmap[:, left, ...]
-    flipped_heatmap_back = flipped_heatmap_back.reshape(shape_ori)
+
     # Flip horizontally
     flipped_heatmap_back = flipped_heatmap_back[..., ::-1]
     return flipped_heatmap_back

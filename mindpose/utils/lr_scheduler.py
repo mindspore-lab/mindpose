@@ -6,16 +6,19 @@ import mindspore.ops as ops
 from mindspore import Tensor
 from mindspore.nn.learning_rate_schedule import LearningRateSchedule
 
+from ..register import entrypoint, register
 
+
+@register("lr_scheduler", extra_name="warmup_cosine_decay")
 class WarmupCosineDecayLR(LearningRateSchedule):
     """CosineDecayLR with warmup
     Args:
-        max_lr: (float) upper lr bound for 'WarmupCosineDecayLR' schedulers.
-        total_epochs: (int) the number of total epochs of learning rate.
-        steps_per_epoch: (int) the number of steps per epoch.
-        warmup: If it is a interger, the number of warm up steps of learning rate.
-            If it is a decimal number, it is the fraction of total steps to warm up. Default = 0
-        min_lr: (float) lower lr bound for 'WarmupCosineDecayLR' schedulers. Default = 0
+        max_lr: Upper lr bound for 'WarmupCosineDecayLR' schedulers.
+        total_epochs: The number of total epochs of learning rate.
+        steps_per_epoch: The number of steps per epoch.
+        warmup: If it is a interger, it means the number of warm up steps of learning rate.
+            If it is a decimal number, it means the fraction of total steps to warm up. Default = 0
+        min_lr: Lower lr bound for 'WarmupCosineDecayLR' schedulers. Default = 0
     """
 
     def __init__(
@@ -62,16 +65,17 @@ class WarmupCosineDecayLR(LearningRateSchedule):
         return lr
 
 
+@register("lr_scheduler", extra_name="warmup_multi_step_decay")
 class WarmupMultiStepDecayLR(LearningRateSchedule):
     """Multi-step decay with warmup
     Args:
-        max_lr: (float) upper lr bound for 'WarmupCosineDecayLR' schedulers.
-        total_epochs: (int) the number of total epochs of learning rate.
-        steps_per_epoch: (int) the number of steps per epoch.
-        milestones (list(int)): The epoch number where the learning rate dacay by one time
-        decay_rate (float): decay rate. Default = 0.1
-        warmup: If it is a interger, the number of warm up steps of learning rate.
-            If it is a decimal number, it is the fraction of total steps to warm up. Default = 0
+        max_lr: Upper lr bound for 'WarmupCosineDecayLR' schedulers.
+        total_epochs: The number of total epochs of learning rate.
+        steps_per_epoch: The number of steps per epoch.
+        milestones: The epoch number where the learning rate dacay by one time
+        decay_rate: Decay rate. Default = 0.1
+        warmup: If it is a interger, it means the number of warm up steps of learning rate.
+            If it is a decimal number, it means the fraction of total steps to warm up. Default = 0
     """
 
     def __init__(
@@ -125,9 +129,13 @@ class WarmupMultiStepDecayLR(LearningRateSchedule):
 def create_lr_scheduler(
     name: str = "warmup_cosine_decay", **kwargs: Any
 ) -> LearningRateSchedule:
-    if name == "warmup_cosine_decay":
-        return WarmupCosineDecayLR(**kwargs)
-    elif name == "warmup_multi_step_decay":
-        return WarmupMultiStepDecayLR(**kwargs)
-    else:
-        raise ValueError("Unsupported learning rate scheduler: `{name}`")
+    """Create learning rate scheduler.
+
+    Args:
+        name: Name of the scheduler. Default: warmup_cosine_decay
+        kwargs: Arguments feed into the corresponding scheduler
+
+    Returns:
+        scheduler: Learning rate scheduler
+    """
+    return entrypoint("lr_scheduler", name)(**kwargs)

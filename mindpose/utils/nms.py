@@ -1,9 +1,19 @@
 """NMS implementation"""
+from typing import Any, Dict, Optional
+
 import numpy as np
 
 
-def oks_iou(g, d, a_g, a_d, sigmas=None, vis_thr=None):
+def oks_iou(
+    g: np.ndarray,
+    d: np.ndarray,
+    a_g: float,
+    a_d: np.ndarray,
+    sigmas: Optional[np.ndarray] = None,
+    vis_thr: Optional[float] = None,
+) -> np.ndarray:
     """Calculate oks ious.
+
     Args:
         g: Ground truth keypoints.
         d: Detected keypoints.
@@ -12,7 +22,7 @@ def oks_iou(g, d, a_g, a_d, sigmas=None, vis_thr=None):
         sigmas: standard deviation of keypoint labelling.
         vis_thr: threshold of the keypoint visibility.
     Returns:
-        list: The oks ious.
+        ious: The oks ious.
     """
     if sigmas is None:
         sigmas = (
@@ -58,15 +68,22 @@ def oks_iou(g, d, a_g, a_d, sigmas=None, vis_thr=None):
     return ious
 
 
-def oks_nms(kpts_db, thr, sigmas=None, vis_thr=None):
+def oks_nms(
+    kpts_db: Dict[str, Any],
+    thr: float,
+    sigmas: Optional[np.ndarray] = None,
+    vis_thr: Optional[float] = None,
+) -> np.ndarray:
     """OKS NMS implementations.
+
     Args:
         kpts_db: keypoints.
         thr: Retain overlap < thr.
         sigmas: standard deviation of keypoint labelling.
         vis_thr: threshold of the keypoint visibility.
     Returns:
-        np.ndarray: indexes to keep.
+
+        keep: indexes to keep.
     """
     if not kpts_db:
         return []
@@ -94,15 +111,19 @@ def oks_nms(kpts_db, thr, sigmas=None, vis_thr=None):
     return keep
 
 
-def _rescore(overlap, scores, thr, key_type="gaussian"):
+def _rescore(
+    overlap: np.ndarray, scores: np.ndarray, thr: float, key_type: str = "gaussian"
+) -> np.ndarray:
     """Rescoring mechanism gaussian or linear.
+
     Args:
         overlap: calculated ious
         scores: target scores.
         thr: retain oks overlap < thr.
         key_type: 'gaussian' or 'linear'
+
     Returns:
-        np.ndarray: indexes to keep
+        scores: list of scores
     """
     assert len(overlap) == len(scores)
     assert key_type in ["gaussian", "linear"]
@@ -116,15 +137,23 @@ def _rescore(overlap, scores, thr, key_type="gaussian"):
     return scores
 
 
-def soft_oks_nms(kpts_db, thr, max_dets=20, sigmas=None, vis_thr=None):
+def soft_oks_nms(
+    kpts_db: Dict[str, Any],
+    thr: float,
+    max_dets: int = 20,
+    sigmas: Optional[np.ndarray] = None,
+    vis_thr: Optional[float] = None,
+):
     """Soft OKS NMS implementations.
+
     Args:
-        kpts_db
+        kpts_db: keypoints
         thr: retain oks overlap < thr.
         max_dets: max number of detections to keep.
         sigmas: Keypoint labelling uncertainty.
+
     Returns:
-        np.ndarray: indexes to keep.
+        keep: indexes to keep.
     """
     if not kpts_db:
         return []

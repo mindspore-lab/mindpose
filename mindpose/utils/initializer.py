@@ -28,11 +28,15 @@ def _calculate_fan_in_and_fan_out(arr: Tensor) -> Tuple[int, int]:
     return fan_in, fan_out
 
 
-def init_by_kaiming_uniform(custom_cell: nn.Cell) -> None:
-    """Initialize parameter."""
+def init_by_kaiming_uniform(network: nn.Cell) -> None:
+    """Initialize the network parameters by Kaiming Uniform
+
+    Args:
+        network: Network to initialize
+    """
     logging.info("Initialize the network parameters with Kaiming Uniform.")
 
-    for name, cell in custom_cell.cells_and_names():
+    for name, cell in network.cells_and_names():
         if isinstance(cell, nn.Conv2d):
             logging.debug(f"Reinitialize {name}")
             cell.weight.set_data(

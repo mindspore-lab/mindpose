@@ -138,6 +138,7 @@ class Bottleneck(nn.Cell):
 class ResNet(Backbone):
     r"""ResNet model class, based on
     `"Deep Residual Learning for Image Recognition" <https://arxiv.org/abs/1512.03385>`_
+
     Args:
         block: Block of resnet.
         layers: Number of layers of each stage.
@@ -238,7 +239,6 @@ class ResNet(Backbone):
         return nn.SequentialCell(layers)
 
     def forward_features(self, x: Tensor) -> Tensor:
-        """Network forward feature extraction."""
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -254,17 +254,21 @@ class ResNet(Backbone):
     def out_channels(self) -> int:
         return 512 * Bottleneck.expansion
 
-    def construct(self, x: Tensor) -> Tensor:
-        x = self.forward_features(x)
-        return x
-
 
 @register("backbone")
 def resnet50(
     pretrained: bool = False, ckpt_url: str = "", in_channels: int = 3, **kwargs
 ) -> ResNet:
     """Get 50 layers ResNet model.
-    Refer to the base class `models.ResNet` for more details.
+
+    Args:
+        pretrained: Whether the model is pretrained. Default: False
+        ckpt_url: Url of the pretrained weight. Default: ""
+        in_channels: Number of input channels. Default: 3
+        kwargs: Arguments which feed into Resnet class
+
+    Returns:
+        ResNet: Resnet model
     """
     model = ResNet(Bottleneck, [3, 4, 6, 3], in_channels=in_channels, **kwargs)
 
@@ -276,7 +280,15 @@ def resnet101(
     pretrained: bool = False, ckpt_url: str = "", in_channels: int = 3, **kwargs
 ) -> ResNet:
     """Get 101 layers ResNet model.
-    Refer to the base class `models.ResNet` for more details.
+
+    Args:
+        pretrained: Whether the model is pretrained. Default: False
+        ckpt_url: Url of the pretrained weight. Default: ""
+        in_channels: Number of input channels. Default: 3
+        kwargs: Arguments which feed into Resnet class
+
+    Returns:
+        ResNet: Resnet model
     """
     model = ResNet(Bottleneck, [3, 4, 23, 3], in_channels=in_channels, **kwargs)
 
@@ -288,7 +300,15 @@ def resnet152(
     pretrained: bool = False, ckpt_url: str = "", in_channels: int = 3, **kwargs
 ) -> ResNet:
     """Get 101 layers ResNet model.
-    Refer to the base class `models.ResNet` for more details.
+
+    Args:
+        pretrained: Whether the model is pretrained. Default: False
+        ckpt_url: Url of the pretrained weight. Default: ""
+        in_channels: Number of input channels. Default: 3
+        kwargs: Arguments which feed into Resnet class
+
+    Returns:
+        ResNet: Resnet model
     """
     model = ResNet(Bottleneck, [3, 8, 36, 3], in_channels=in_channels, **kwargs)
 

@@ -12,20 +12,35 @@ from mindspore import RunContext, SummaryRecord, Tensor
 from mindspore.dataset import Dataset
 from mindspore.train.callback import Callback
 
-from ..engine.evaluators import Evaluator
+from ..engine.evaluator import Evaluator
 from ..engine.inferencer import Inferencer
 from ..utils.misc import Allreduce, AverageMeter
 
 
 class EvalCallback(Callback):
-    """Evaluation call back
+    """Running evaluation during training.
+    The training, evaluation result will be saved in summary record format for visualization.
+    The best and last checkpoint can be saved after each training epoch.
 
     Args:
-        net_to_save (bool): the network parameter to save when `save_best` is True.
-            The default net parameters will be used if it is not provided.
+        inferencer: Inferencer for running inference on the dataset
+        evaluator: Evaluator for running evaluation
+        dataset: The dataset used for running inference
+        interval: The interval of running evaluation, in epoch. Default: 1
+        max_epoch: Total number of epochs for training. Default: 1
+        net_to_save: the network parameter to save when `save_best` or `save_last` is True. Default: None
+        save_best: Saving the best model based on the result of the target metric performance. Default: False
+        save_last: Saving the last model. Default: False
+        best_ckpt_path: Path of the best checkpoint file. Default: "./best.ckpt"
+        last_ckpt_path: Path of the last checkpoint file. Default: "./last.ckpt"
+        target_metric_name: The metric name deciding the best model to save. Default: "AP"
+        summary_dir: The directory storing the summary record. Default: "."
+        rank_id: Rank id. Default: None
+        device_num: Number of devices. Default: None
+        temp_result_dir: The directory holding the temporarily results.
+            It is used for parallel evaluation. Default: "/tmp/result"
     """
 
-    # TODO: too big, need refactor
     def __init__(
         self,
         inferencer: Inferencer,
@@ -36,8 +51,8 @@ class EvalCallback(Callback):
         net_to_save: Optional[nn.Cell] = None,
         save_best: bool = False,
         save_last: bool = False,
-        best_ckpt_path: str = "best.ckpt",
-        last_ckpt_path: str = "last.ckpt",
+        best_ckpt_path: str = "./best.ckpt",
+        last_ckpt_path: str = "./last.ckpt",
         target_metric_name: str = "AP",
         summary_dir: str = ".",
         rank_id: Optional[int] = None,
@@ -52,13 +67,15 @@ class EvalCallback(Callback):
         self.interval = interval
         self.max_epoch = max_epoch
 
-        if net_to_save is None:
-            self.net_to_save = self.net
-        else:
-            self.net_to_save = net_to_save
-
+        self.net_to_save = net_to_save
         self.save_best = save_best
         self.save_last = save_last
+        if self.net_to_save is None:
+            if self.save_best or self.save_last:
+                raise ValueError(
+                    "`net_to_save` must be provided when saving model is true"
+                )
+
         self.best_ckpt_path = os.path.abspath(best_ckpt_path)
         self.last_ckpt_path = os.path.abspath(last_ckpt_path)
         self.target_metric_name = target_metric_name
@@ -67,10 +84,10 @@ class EvalCallback(Callback):
         self.device_num = device_num if device_num is not None else 1
         self.temp_result_dir = temp_result_dir
 
-        if self.target_metric_name not in evaluator.get_metrics():
+        if self.target_metric_name not in evaluator.metrics:
             raise ValueError(
                 f"target metric `{self.target_metric_name}` "
-                f"is not listed in evaluator metrics `{evaluator.get_metrics()}`"
+                f"is not listed in evaluator metrics `{evaluator.metrics}`"
             )
 
         if self.device_num > 1:
@@ -136,7 +153,7 @@ class EvalCallback(Callback):
                 result = self._accumulate_result(cur_epoch, result)
 
             if self.rank_id == 0:
-                output = self.evaluator.evaluate(result)
+                output = self.evaluator(result)
                 target_result = output[self.target_metric_name]
                 if self.save_best:
                     self._save_best_model(target_result, cur_epoch)
