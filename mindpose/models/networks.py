@@ -13,7 +13,7 @@ from .necks import Neck
 
 
 class Net(nn.Cell):
-    """Create network for foward and backward propagate
+    """Create network for foward and backward propagate.
 
     Args:
         backbone: Model backbone
@@ -21,10 +21,10 @@ class Net(nn.Cell):
         neck: Model neck. Default: None
 
     Inputs:
-        x: Tensor
+        | x: Tensor
 
     Outputs:
-        result: Tensor
+        | result: Tensor
     """
 
     def __init__(
@@ -45,7 +45,7 @@ class Net(nn.Cell):
 
 
 class EvalNet(nn.Cell):
-    """Create network for forward propagate and decoding only
+    """Create network for forward propagate and decoding only.
 
     Args:
         net: Network used for foward and backward propagate
@@ -53,11 +53,11 @@ class EvalNet(nn.Cell):
         output_raw: Return extra net's ouput. Default: True
 
     Inputs:
-        inputs: List of tensors
+        | inputs: List of tensors
 
     Outputs
-        result: Decoded result
-        raw_result (optional): Raw result if output_raw is true
+        | result: Decoded result
+        | raw_result (optional): Raw result if output_raw is true
     """
 
     def __init__(self, net: Net, decoder: Decoder, output_raw: bool = True) -> None:
@@ -77,7 +77,7 @@ class EvalNet(nn.Cell):
 
 
 class NetWithLoss(nn.Cell):
-    """Create network with loss
+    """Create network with loss.
 
     Args:
         net: Network used for foward and backward propagate
@@ -85,12 +85,12 @@ class NetWithLoss(nn.Cell):
         has_extra_inputs: Has Extra inputs in the loss calculation. Default: False
 
     Inputs:
-        data: Tensor feed into network
-        label: Tensor of label
-        extra_inputs: List of extra tensors used in loss calculation
+        | data: Tensor feed into network
+        | label: Tensor of label
+        | extra_inputs: List of extra tensors used in loss calculation
 
     Outputs:
-        loss: Loss value
+        | loss: Loss value
     """
 
     def __init__(self, net: Net, loss: Loss, has_extra_inputs: bool = False) -> None:

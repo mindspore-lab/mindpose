@@ -15,14 +15,15 @@ def oks_iou(
     """Calculate oks ious.
 
     Args:
-        g: Ground truth keypoints.
-        d: Detected keypoints.
-        a_g: Area of the ground truth object.
-        a_d: Area of the detected object.
-        sigmas: standard deviation of keypoint labelling.
-        vis_thr: threshold of the keypoint visibility.
+        g: Ground truth keypoints
+        d: Detected keypoints
+        a_g: Area of the ground truth object
+        a_d: Area of the detected object
+        sigmas: standard deviation of keypoint labelling. Default: None
+        vis_thr: threshold of the keypoint visibility. Default: None
+
     Returns:
-        ious: The oks ious.
+        The oks ious
     """
     if sigmas is None:
         sigmas = (
@@ -77,13 +78,13 @@ def oks_nms(
     """OKS NMS implementations.
 
     Args:
-        kpts_db: keypoints.
-        thr: Retain overlap < thr.
-        sigmas: standard deviation of keypoint labelling.
-        vis_thr: threshold of the keypoint visibility.
-    Returns:
+        kpts_db: keypoints
+        thr: Retain overlap < thr
+        sigmas: standard deviation of keypoint labelling. Default: None
+        vis_thr: threshold of the keypoint visibility. Default: None
 
-        keep: indexes to keep.
+    Returns:
+        indexes to keep
     """
     if not kpts_db:
         return []
@@ -118,12 +119,12 @@ def _rescore(
 
     Args:
         overlap: calculated ious
-        scores: target scores.
-        thr: retain oks overlap < thr.
-        key_type: 'gaussian' or 'linear'
+        scores: target scores
+        thr: retain oks overlap < thr
+        key_type: "gaussian" or "linear". Default: "gaussian"
 
     Returns:
-        scores: list of scores
+        list of scores
     """
     assert len(overlap) == len(scores)
     assert key_type in ["gaussian", "linear"]
@@ -148,12 +149,12 @@ def soft_oks_nms(
 
     Args:
         kpts_db: keypoints
-        thr: retain oks overlap < thr.
-        max_dets: max number of detections to keep.
-        sigmas: Keypoint labelling uncertainty.
+        thr: retain oks overlap < thr
+        max_dets: max number of detections to keep. Default: None
+        sigmas: Keypoint labelling uncertainty. Default: None
 
     Returns:
-        keep: indexes to keep.
+        indexes to keep
     """
     if not kpts_db:
         return []

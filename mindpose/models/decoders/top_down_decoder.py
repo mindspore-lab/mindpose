@@ -10,22 +10,27 @@ from .decoder import Decoder
 
 @register("decoder", extra_name="topdown_heatmap")
 class TopDownHeatMapDecoder(Decoder):
-    """Decode the heatmap into coordinate with bounding box
+    """Decode the heatmaps into coordinates with bounding boxes.
 
     Args:
         pixel_std: The scaling factor using in decoding. Default: 200.
-        to_original: Convert the coordinate to the raw image. Default: True
-        shift_coordinate: Perform a +-0.25 coordinate shift based on heatmap value. Default: True
+        to_original: Convert the coordinate into the raw image. Default: True
+        shift_coordinate: Perform a +-0.25 coordinate shift based on heatmap
+            value. Default: True
 
     Inputs:
-        heatmap: The ordinary output based on heatmap-based model, in shape [N, H, W]
-        center: Center of the bounding box (x, y) in raw image, in shape [N, 2]
-        scale: Scale of the bounding box with respect to the raw image, in shape [N, 2]
-        score: Score of the bounding box, in shape [N, 1]
+        | heatmap: The ordinary output based on heatmap-based model,
+            in shape [N, C, H, W]
+        | center: Center of the bounding box (x, y) in raw image, in shape [N, C, 2]
+        | scale: Scale of the bounding box with respect to the raw image,
+            in shape [N, C, 2]
+        | score: Score of the bounding box, in shape [N, C, 1]
 
     Outputs:
-        coordinate: The coordindate of M joints, in shape [N, M, (x_coord, y_coord, score)]
-        boxes: The coor bounding boxes, in shape [N, (center_x, center_y, scale_x, scale_y, area, bounding box score)]
+        | coordinate: The coordindate of C joints,
+            in shape [N, C, 3(x_coord, y_coord, score)]
+        | boxes: The coor bounding boxes, in shape
+            [N, 6(center_x, center_y, scale_x, scale_y, area, bounding_box_score)]
     """
 
     def __init__(

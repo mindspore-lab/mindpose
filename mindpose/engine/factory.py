@@ -7,6 +7,9 @@ from .evaluator import Evaluator
 from .inferencer import Inferencer
 
 
+__all__ = ["create_inferencer", "create_evaluator"]
+
+
 def create_inferencer(
     net: EvalNet,
     name: str = "topdown_heatmap",
@@ -14,20 +17,25 @@ def create_inferencer(
     dataset_config: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ) -> Inferencer:
-    """Create inference engine
+    """Create inference engine. Inference engine is used to perform model
+    inference on the entire dataset based on the given method name.
 
     Args:
         net: Network for evaluation
         name: Name of the inference method. Default: "topdown_heatmap"
         config: Inference config. Default: None
-        dataset_config: Dataset config. Since the inference method sometimes relies on the dataset info. Default: None
+        dataset_config: Dataset config. Since the inference method
+            sometimes relies on the dataset info. Default: None
         **kwargs: Arguments which feed into the inferencer
+
+    Returns:
+        Inference engine for inferencing
     """
     config = config if config else dict()
     dataset_config = dataset_config if dataset_config else dict()
 
     # combine two configurations
-    full_config = merge_configs(config, dataset_config)
+    full_config = _merge_configs(config, dataset_config)
 
     return entrypoint("inferencer", name)(net=net, config=full_config, **kwargs)
 
@@ -40,28 +48,35 @@ def create_evaluator(
     dataset_config: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ) -> Evaluator:
-    """Create evaluator
+    """Create evaluator engine. Evaluator engine is used to provide metric performance
+    based on the provided prediction result.
 
     Args:
+        annotation_file: Path of the annotation file. It only supports COCO-format now.
         name: Name of the evaluation method. Default: "topdown"
-        annotation_file: Path of the annotation file. It only supports COCO-format.
         metric: Supported metrics. Default: "AP"
         config: Evaluaton config. Default: None
-        dataset_config: Dataset config. Since the evaluation method sometimes relies on the dataset info. Default: None
+        dataset_config: Dataset config. Since the evaluation method
+            sometimes relies on the dataset info. Default: None
         **kwargs: Arguments which feed into the evaluator
+
+    Returns:
+        Evaluator engine for evaluation
     """
     config = config if config else dict()
     dataset_config = dataset_config if dataset_config else dict()
 
     # combine two configurations
-    full_config = merge_configs(config, dataset_config)
+    full_config = _merge_configs(config, dataset_config)
 
     return entrypoint("evaluator", name)(
         annotation_file=annotation_file, metric=metric, config=full_config, **kwargs
     )
 
 
-def merge_configs(config_1: Dict[str, Any], config_2: Dict[str, Any]) -> Dict[str, Any]:
+def _merge_configs(
+    config_1: Dict[str, Any], config_2: Dict[str, Any]
+) -> Dict[str, Any]:
     common_keys = set(config_1.keys()).intersection(config_2.keys())
     if len(common_keys) > 0:
         logging.warning(f"Duplicated keys found in two configs: `{common_keys}`")

@@ -9,18 +9,19 @@ from .loss import Loss
 
 @register("loss", extra_name="joint_mse")
 class JointsMSELoss(Loss):
-    """Joint Mean square error loss
+    """Joint Mean square error loss.
+    It is the MSE loss of heatmaps with extra weight for different channel.
 
     Args:
         use_target_weight: Use extra weight in loss calculation
 
     Inputs:
-        pred: predictions, in shape [N, C, H, W]
-        target: ground truth, in shape [N, C, H, W]
-        target_weight: loss, weight, in shape [N, C]
+        | pred: Predictions, in shape [N, C, H, W]
+        | target: Ground truth, in shape [N, C, H, W]
+        | target_weight: Loss weight, in shape [N, C]
 
     Outputs:
-        loss: loss value
+        | loss: Loss value
     """
 
     def __init__(self, use_target_weight: bool = False) -> None:

@@ -1,9 +1,15 @@
+from typing import List, Union
+
 import mindspore.nn as nn
 from mindspore import Tensor
 
 
 class Backbone(nn.Cell):
-    """Abstract class for all backbones"""
+    """Abstract class for all backbones.
+
+    Note:
+        Child class must implement `foward_feature` and `out_channels` method.
+    """
 
     def forward_feature(self, x: Tensor) -> Tensor:
         """Perform the feature extraction.
@@ -12,7 +18,7 @@ class Backbone(nn.Cell):
             x: Tensor
 
         Returns:
-            Tensor: Extracted feature
+            Extracted feature
         """
         raise NotImplementedError("Child class must implement this method.")
 
@@ -21,6 +27,10 @@ class Backbone(nn.Cell):
         return x
 
     @property
-    def out_channels(self) -> int:
-        """Get number of output channels"""
+    def out_channels(self) -> Union[List[int], int]:
+        """Get number of output channels.
+
+        Returns:
+            Output channels.
+        """
         raise NotImplementedError("Child class must implement this method.")

@@ -19,8 +19,8 @@ from ..utils.misc import Allreduce, AverageMeter
 
 class EvalCallback(Callback):
     """Running evaluation during training.
-    The training, evaluation result will be saved in summary record format for visualization.
-    The best and last checkpoint can be saved after each training epoch.
+    The training, evaluation result will be saved in summary record format for
+    visualization. The best and last checkpoint can be saved after each training epoch.
 
     Args:
         inferencer: Inferencer for running inference on the dataset
@@ -28,12 +28,15 @@ class EvalCallback(Callback):
         dataset: The dataset used for running inference
         interval: The interval of running evaluation, in epoch. Default: 1
         max_epoch: Total number of epochs for training. Default: 1
-        net_to_save: the network parameter to save when `save_best` or `save_last` is True. Default: None
-        save_best: Saving the best model based on the result of the target metric performance. Default: False
+        net_to_save: the network parameter to save when `save_best` or
+            `save_last` is True. Default: None
+        save_best: Saving the best model based on the result of the target metric
+            performance. Default: False
         save_last: Saving the last model. Default: False
         best_ckpt_path: Path of the best checkpoint file. Default: "./best.ckpt"
         last_ckpt_path: Path of the last checkpoint file. Default: "./last.ckpt"
-        target_metric_name: The metric name deciding the best model to save. Default: "AP"
+        target_metric_name: The metric name deciding the best model to save.
+            Default: "AP"
         summary_dir: The directory storing the summary record. Default: "."
         rank_id: Rank id. Default: None
         device_num: Number of devices. Default: None
@@ -207,7 +210,8 @@ class EvalCallback(Callback):
     def _save_best_model(self, result: float, cur_epoch: int) -> None:
         logging.info(
             f"epoch: {cur_epoch}, "
-            f"current result: {result:.3f}, previous_best_result: {self.best_result:.3f}"
+            f"current result: {result:.3f}, "
+            "previous_best_result: {self.best_result:.3f}"
         )
         if result > self.best_result:
             self.best_result = result
@@ -233,7 +237,8 @@ class EvalCallback(Callback):
         Args:
             cb_params (_InternalCallbackParam): Callback parameters.
         Returns:
-            Union[Tensor, None], if parse loss success, will return a Tensor value(shape is [1]), else return None.
+            Union[Tensor, None], if parse loss success, will
+            return a Tensor value(shape is [1]), else return None.
         """
         output = cb_params.net_outputs
         if output is None:
@@ -252,7 +257,8 @@ class EvalCallback(Callback):
         else:
             logging.warning(
                 "The output type could not be identified, expect type is one of "
-                "[int, float, Tensor, list, tuple], so no loss was recorded in SummaryCollector."
+                "[int, float, Tensor, list, tuple], "
+                "so no loss was recorded in SummaryCollector."
             )
             return None
 
