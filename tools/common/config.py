@@ -1,4 +1,5 @@
 import argparse
+import logging
 from ast import literal_eval
 from typing import Any, Dict
 
@@ -52,8 +53,7 @@ def parse_args(description: str = "", need_ckpt: bool = False) -> argparse.Names
 
     del args.cfg_options
 
-    print("Arguments: ")
-    print(args)
+    logging.info(args)
 
     return args
 
