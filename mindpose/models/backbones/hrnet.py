@@ -11,6 +11,7 @@ from mindspore import Tensor
 from ...register import register
 
 from .backbone import Backbone
+from .utils import load_pretrained
 
 
 __all__ = ["HRNet", "hrnet_w32", "hrnet_w48"]
@@ -526,7 +527,7 @@ class HRNet(Backbone):
         layer_config: Dict[str, int],
         num_inchannels: int,
         multi_scale_output: bool = True,
-    ) -> Tuple[nn.SequentialCell, int]:
+    ) -> Tuple[nn.SequentialCell, List[int]]:
         num_modules = layer_config["num_modules"]
         num_branches = layer_config["num_branches"]
         num_blocks = layer_config["num_blocks"]
@@ -660,7 +661,8 @@ def hrnet_w32(
     )
     model = HRNet(stage_cfg, in_channels=in_channels)
 
-    # TODO: add pretrain
+    if pretrained:
+        load_pretrained(model, ckpt_url=ckpt_url)
     return model
 
 
@@ -710,4 +712,7 @@ def hrnet_w48(
         ),
     )
     model = HRNet(stage_cfg, in_channels=in_channels)
+
+    if pretrained:
+        load_pretrained(model, ckpt_url=ckpt_url)
     return model

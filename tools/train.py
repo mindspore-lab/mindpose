@@ -116,8 +116,11 @@ def train(args: Namespace) -> None:
         neck_out_channels=args.neck_out_channels,
         num_joints=args.num_joints,
     )
-    if args.init_by_kaiming_uniform:
+
+    if args.init_by_kaiming_uniform and not args.backbone_pretrained:
         init_by_kaiming_uniform(net)
+    elif args.init_by_kaiming_uniform:
+        logging.warning("Weight initialization is skipped due to pretrained weight.")
 
     # create evaluation network
     decoder = create_decoder(args.decoder_name, **args.decoder_detail)

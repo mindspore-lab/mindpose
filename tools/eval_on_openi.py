@@ -6,8 +6,12 @@ import os
 import subprocess
 import sys
 
-import moxing as mox
-from common.config import create_parser, parse_yaml
+try:
+    import moxing as mox
+except ImportError as e:
+    raise ValueError("This script aims to run on the OpenI platform.") from e
+
+from common.config import create_parser, merge_args, parse_args
 
 
 def install_packages(project_dir: str) -> None:
@@ -42,12 +46,8 @@ def upload_data(src: str, s3_path: str) -> None:
     mox.file.copy_parallel(src_url=src, dst_url=s3_path)
 
 
-def parse_args(
-    project_dir: str,
-    description: str = "",
-    need_ckpt: bool = False,
-) -> argparse.Namespace:
-    parser = create_parser(description=description, need_ckpt=need_ckpt)
+def parse_openi_args() -> argparse.Namespace:
+    parser = create_parser(description="OpenI extra arguments")
     # add arguments
     # the follow arguments are proviced by OpenI, do not change.
     parser.add_argument("--device_target", help="Device target")
@@ -58,10 +58,6 @@ def parse_args(
     parser.add_argument("--train_url", help="Path of the training output in S3")
     args = parser.parse_args()
 
-    config_path = os.path.join(project_dir, args.config)
-    cfg = parse_yaml(config_path)
-    for k, v in cfg.items():
-        setattr(args, k, v)
     return args
 
 
@@ -75,10 +71,9 @@ if __name__ == "__main__":
 
     from eval import eval
 
-    args = parse_args(
-        project_dir, need_ckpt=False, description="Evaluation script on OpenI"
-    )
-    print(args)
+    args = parse_args(project_dir, description="Evaluation script")
+    openi_args = parse_openi_args()
+    args = merge_args(args, openi_args)
 
     # copy data from S3 to local
     download_data(s3_path=args.data_url, dest="data/")

@@ -8,6 +8,7 @@ from mindspore import Tensor
 from ...register import register
 
 from .backbone import Backbone
+from .utils import load_pretrained
 
 __all__ = ["ResNet", "resnet50", "resnet101", "resnet152"]
 
@@ -287,6 +288,8 @@ def resnet50(
     """
     model = ResNet(Bottleneck, [3, 4, 6, 3], in_channels=in_channels, **kwargs)
 
+    if pretrained:
+        load_pretrained(model, ckpt_url=ckpt_url)
     return model
 
 
@@ -307,6 +310,8 @@ def resnet101(
     """
     model = ResNet(Bottleneck, [3, 4, 23, 3], in_channels=in_channels, **kwargs)
 
+    if pretrained:
+        load_pretrained(model, ckpt_url=ckpt_url)
     return model
 
 
@@ -327,4 +332,6 @@ def resnet152(
     """
     model = ResNet(Bottleneck, [3, 8, 36, 3], in_channels=in_channels, **kwargs)
 
+    if pretrained:
+        load_pretrained(model, ckpt_url=ckpt_url)
     return model
