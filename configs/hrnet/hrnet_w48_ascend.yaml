@@ -5,6 +5,8 @@ enable_graph_kernel: False
 num_parallel_workers: 4
 val_while_train: True
 val_interval: 10
+save_best: True
+save_last: True
 
 # dataset
 dataset_format: "coco_topdown"
@@ -78,7 +80,6 @@ head_name: "hrnet_head"
 decoder_name: "topdown_heatmap"
 decoder_detail:
   shift_coordinate: False
-init_by_kaiming_uniform: True
 
 # loss
 loss: "joint_mse"
@@ -92,17 +93,17 @@ loss_scale: 1024
 
 # lr scheduler
 scheduler: "warmup_cosine_decay"
-num_epochs: 420
+num_epochs: 210
+lr: 0.0001
 warmup: 500
-scheduler_detail:
-  min_lr: 0.
+lr_scheduler_detail:
+  min_lr: 0.000001
 
 # optimizer
 optimizer: "adam"
-lr: 0.00002
-scale_lr: False
 weight_decay: 0.0001
-momentum: 0.9
+filter_bias_and_bn: True
+optimizer_detail: {}
 
 # evaluation
 inference_method: "topdown_heatmap"

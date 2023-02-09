@@ -3,6 +3,7 @@
 """
 import argparse
 import functools
+import logging
 import os
 import subprocess
 import sys
@@ -15,9 +16,10 @@ except ImportError as e:
     raise ValueError("This script aims to run on the OpenI platform.") from e
 
 from common.config import create_parser, merge_args, parse_args
+from common.log import setup_default_logging
 
-
-LOCAL_RANK = int(os.getenv("RANK_ID", 0))
+_local_rank = int(os.getenv("RANK_ID", 0))
+_logger = logging.getLogger(__name__)
 
 
 def run_with_single_rank(
@@ -42,7 +44,7 @@ def run_with_single_rank(
     return decorator
 
 
-@run_with_single_rank(local_rank=LOCAL_RANK, signal="/tmp/INSTALL_SUCCESS")
+@run_with_single_rank(local_rank=_local_rank, signal="/tmp/INSTALL_SUCCESS")
 def install_packages(project_dir: str) -> None:
     url = "https://pypi.tuna.tsinghua.edu.cn/simple"
     requirement_txt = os.path.join(project_dir, "requirements.txt")
@@ -51,7 +53,7 @@ def install_packages(project_dir: str) -> None:
     )
 
 
-@run_with_single_rank(local_rank=LOCAL_RANK, signal="/tmp/DOWNLOAD_DATA_SUCCESS")
+@run_with_single_rank(local_rank=_local_rank, signal="/tmp/DOWNLOAD_DATA_SUCCESS")
 def download_data(s3_path: str, dest: str) -> None:
     if not os.path.isdir(dest):
         os.makedirs(dest)
@@ -59,7 +61,7 @@ def download_data(s3_path: str, dest: str) -> None:
     mox.file.copy_parallel(src_url=s3_path, dst_url=dest)
 
 
-@run_with_single_rank(local_rank=LOCAL_RANK, signal="/tmp/DOWNLOAD_CKPT_SUCCESS")
+@run_with_single_rank(local_rank=_local_rank, signal="/tmp/DOWNLOAD_CKPT_SUCCESS")
 def download_ckpt(s3_path: str, dest: str) -> str:
     if not os.path.isdir(dest):
         os.makedirs(dest)
@@ -73,7 +75,7 @@ def download_ckpt(s3_path: str, dest: str) -> str:
 
 def upload_data(src: str, s3_path: str) -> None:
     abs_src = os.path.abspath(src)
-    print(f"Uploading data from {abs_src} to s3")
+    _logger.info(f"Uploading data from {abs_src} to s3")
     mox.file.copy_parallel(src_url=abs_src, dst_url=s3_path)
 
 
@@ -91,7 +93,9 @@ def parse_openi_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    print(os.environ)
+    setup_default_logging()
+
+    _logger.info(os.environ)
 
     # locate the path of the project
     project_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -120,5 +124,5 @@ if __name__ == "__main__":
 
     # copy output from local to s3
     time.sleep(30)
-    if LOCAL_RANK == 0:
+    if _local_rank == 0:
         upload_data(src=args.outdir, s3_path=args.train_url)

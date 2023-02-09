@@ -16,8 +16,12 @@ import cv2
 import mindspore as ms
 import numpy as np
 from common.config import parse_args
+from common.log import setup_default_logging
 from mindpose.data import create_dataset, create_pipeline
 from mindpose.models import create_decoder, create_eval_network, create_network
+
+
+_logger = logging.getLogger(__name__)
 
 
 def visual_pred_heatmap(args: Namespace) -> None:
@@ -105,18 +109,20 @@ def visual_pred_heatmap(args: Namespace) -> None:
             os.makedirs(args.outdir)
 
         fpath = os.path.join(args.outdir, f"{i}_pred.jpg")
-        logging.info(f"Saving to {fpath}")
+        _logger.info(f"Saving to {fpath}")
         cv2.imwrite(fpath, img)
 
 
 def main():
+    setup_default_logging()
+
     args = parse_args(
-        description="Visualize the heatmap of the prediction on the cropped validation images",
+        description="Visualize the heatmap of the prediction on "
+        "the cropped validation images",
         need_ckpt=True,
     )
     visual_pred_heatmap(args)
 
 
 if __name__ == "__main__":
-    logging.getLogger().setLevel(logging.INFO)
     main()

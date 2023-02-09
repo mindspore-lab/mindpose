@@ -16,6 +16,8 @@ from ..engine.evaluator import Evaluator
 from ..engine.inferencer import Inferencer
 from ..utils.misc import Allreduce, AverageMeter
 
+_logger = logging.getLogger(__name__)
+
 
 class EvalCallback(Callback):
     """Running evaluation during training.
@@ -28,8 +30,6 @@ class EvalCallback(Callback):
         dataset: The dataset used for running inference
         interval: The interval of running evaluation, in epoch. Default: 1
         max_epoch: Total number of epochs for training. Default: 1
-        net_to_save: the network parameter to save when `save_best` or
-            `save_last` is True. Default: None
         save_best: Saving the best model based on the result of the target metric
             performance. Default: False
         save_last: Saving the last model. Default: False
@@ -51,7 +51,6 @@ class EvalCallback(Callback):
         dataset: Dataset,
         interval: int = 1,
         max_epoch: int = 1,
-        net_to_save: Optional[nn.Cell] = None,
         save_best: bool = False,
         save_last: bool = False,
         best_ckpt_path: str = "./best.ckpt",
@@ -70,14 +69,8 @@ class EvalCallback(Callback):
         self.interval = interval
         self.max_epoch = max_epoch
 
-        self.net_to_save = net_to_save
         self.save_best = save_best
         self.save_last = save_last
-        if self.net_to_save is None:
-            if self.save_best or self.save_last:
-                raise ValueError(
-                    "`net_to_save` must be provided when saving model is true"
-                )
 
         self.best_ckpt_path = os.path.abspath(best_ckpt_path)
         self.last_ckpt_path = os.path.abspath(last_ckpt_path)
@@ -132,7 +125,7 @@ class EvalCallback(Callback):
         except TypeError:  # constant lr is not callable
             lr = optimizer.learning_rate
 
-        logging.info(
+        _logger.info(
             f"[rank = {self.rank_id}] epoch = {cur_epoch}, lr = {lr.asnumpy():.3e}, "
             f"loss = {self.loss_meter.avg.asnumpy():.6f}"
         )
@@ -145,7 +138,7 @@ class EvalCallback(Callback):
 
         if self.rank_id == 0:
             if self.save_last:
-                self._save_last_model()
+                self._save_last_model(cb_param.train_network)
 
         output = dict()
         if cur_epoch % self.interval == 0 or cur_epoch == self.max_epoch:
@@ -157,9 +150,12 @@ class EvalCallback(Callback):
 
             if self.rank_id == 0:
                 output = self.evaluator(result)
+                _logger.info(output)
                 target_result = output[self.target_metric_name]
                 if self.save_best:
-                    self._save_best_model(target_result, cur_epoch)
+                    self._save_best_model(
+                        cb_param.train_network, target_result, cur_epoch
+                    )
 
         # add summary record
         if self.rank_id == 0:
@@ -207,29 +203,29 @@ class EvalCallback(Callback):
                     all_result.extend(json.load(f))
             return all_result
 
-    def _save_best_model(self, result: float, cur_epoch: int) -> None:
-        logging.info(
+    def _save_best_model(self, net: nn.Cell, result: float, cur_epoch: int) -> None:
+        _logger.info(
             f"epoch: {cur_epoch}, "
             f"current result: {result:.3f}, "
-            "previous_best_result: {self.best_result:.3f}"
+            f"previous_best_result: {self.best_result:.3f}."
         )
         if result > self.best_result:
             self.best_result = result
             self.best_epoch = cur_epoch
-            ms.save_checkpoint(self.net_to_save, self.best_ckpt_path)
-            logging.info(
+            ms.save_checkpoint(net, self.best_ckpt_path)
+            _logger.info(
                 f"Best result is {self.best_result:.3f} at {self.best_epoch} epoch. "
-                f"Best checkpoint is saved at {self.best_ckpt_path}"
+                f"Best checkpoint is saved at `{self.best_ckpt_path}`."
             )
         else:
-            logging.info(
+            _logger.info(
                 f"Best result is {self.best_result:.3f} at {self.best_epoch} epoch. "
                 "Best checkpoint is unchanged."
             )
 
-    def _save_last_model(self) -> None:
-        ms.save_checkpoint(self.net_to_save, self.last_ckpt_path)
-        logging.info(f"Last checkpoint is saved at {self.last_ckpt_path}")
+    def _save_last_model(self, net: nn.Cell) -> None:
+        ms.save_checkpoint(net, self.last_ckpt_path)
+        _logger.info(f"Last checkpoint is saved at `{self.last_ckpt_path}`.")
 
     def _get_loss(self, cb_params: Dict[str, Any]) -> Tensor:
         """
@@ -242,7 +238,7 @@ class EvalCallback(Callback):
         """
         output = cb_params.net_outputs
         if output is None:
-            logging.warning(
+            _logger.warning(
                 "Can not find any output by this network, "
                 "so SummaryCollector will not collect loss."
             )
@@ -255,7 +251,7 @@ class EvalCallback(Callback):
             # we assume that the first one is loss.
             loss = output[0]
         else:
-            logging.warning(
+            _logger.warning(
                 "The output type could not be identified, expect type is one of "
                 "[int, float, Tensor, list, tuple], "
                 "so no loss was recorded in SummaryCollector."

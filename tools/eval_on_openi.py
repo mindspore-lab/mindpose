@@ -2,6 +2,7 @@
 """Perform evaluation on OpenI
 """
 import argparse
+import logging
 import os
 import subprocess
 import sys
@@ -12,6 +13,9 @@ except ImportError as e:
     raise ValueError("This script aims to run on the OpenI platform.") from e
 
 from common.config import create_parser, merge_args, parse_args
+from common.log import setup_default_logging
+
+_logger = logging.getLogger(__name__)
 
 
 def install_packages(project_dir: str) -> None:
@@ -27,8 +31,6 @@ def download_data(s3_path: str, dest: str) -> None:
         os.makedirs(dest)
 
     mox.file.copy_parallel(src_url=s3_path, dst_url=dest)
-
-    print(f"Data directory: {os.listdir(dest)}")
 
 
 def download_ckpt(s3_path: str, dest: str) -> str:
@@ -62,7 +64,9 @@ def parse_openi_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    print(os.environ)
+    setup_default_logging()
+
+    _logger.info(os.environ)
 
     # locate the path of the project
     project_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))

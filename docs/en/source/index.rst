@@ -14,7 +14,8 @@ Welcome to MindPose's documentation!
    api/mindpose.data
    api/mindpose.models
    api/mindpose.engine
-   api/mindpose.utils
+   api/mindpose.optim
+   api/mindpose.scheduler
    api/mindpose.callbacks
 
 

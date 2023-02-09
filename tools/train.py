@@ -13,6 +13,7 @@ from argparse import Namespace
 
 import mindspore as ms
 from common.config import parse_args
+from common.log import setup_default_logging
 from mindpose.callbacks import EvalCallback
 from mindpose.data import create_dataset, create_pipeline
 from mindpose.engine import create_evaluator, create_inferencer
@@ -23,12 +24,13 @@ from mindpose.models import (
     create_network,
     create_network_with_loss,
 )
-from mindpose.utils.initializer import init_by_kaiming_uniform
-from mindpose.utils.lr_scheduler import create_lr_scheduler
-from mindpose.utils.optimizer import create_optimizer
+from mindpose.optim import create_optimizer
+from mindpose.scheduler import create_lr_scheduler
 from mindspore import FixedLossScaleManager, Model
 
 ms.set_seed(0)
+
+_logger = logging.getLogger(__name__)
 
 
 def train(args: Namespace) -> None:
@@ -43,10 +45,7 @@ def train(args: Namespace) -> None:
         device_num = ms.communication.get_group_size()
         rank_id = ms.communication.get_rank()
         ms.set_auto_parallel_context(
-            device_num=device_num,
-            parallel_mode="data_parallel",
-            gradients_mean=True,
-            parameter_broadcast=True,
+            device_num=device_num, parallel_mode="data_parallel", gradients_mean=True
         )
 
         if "DEVICE_ID" in os.environ:
@@ -117,11 +116,6 @@ def train(args: Namespace) -> None:
         num_joints=args.num_joints,
     )
 
-    if args.init_by_kaiming_uniform and not args.backbone_pretrained:
-        init_by_kaiming_uniform(net)
-    elif args.init_by_kaiming_uniform:
-        logging.warning("Weight initialization is skipped due to pretrained weight.")
-
     # create evaluation network
     decoder = create_decoder(args.decoder_name, **args.decoder_detail)
     val_net = create_eval_network(net, decoder)
@@ -134,23 +128,14 @@ def train(args: Namespace) -> None:
         net, loss, has_extra_inputs=args.loss_with_extra_input
     )
 
-    # rescale the learning rate
-    if args.distribute and args.scale_lr:
-        lr = args.lr * device_num
-        logging.info(
-            "Rescale the learning rate by linear rule. " f"New learning rate = {lr}"
-        )
-    else:
-        lr = args.lr
-
     # create learning rate scheduler
     lr_scheduler = create_lr_scheduler(
         name=args.scheduler,
-        max_lr=lr,
+        lr=args.lr,
         total_epochs=args.num_epochs,
         steps_per_epoch=train_dataset.get_dataset_size(),
         warmup=args.warmup,
-        **args.scheduler_detail,
+        **args.lr_scheduler_detail,
     )
 
     # create optimizer
@@ -158,10 +143,18 @@ def train(args: Namespace) -> None:
         net_with_loss.trainable_params(),
         name=args.optimizer,
         learning_rate=lr_scheduler,
-        loss_scale=args.loss_scale,
+        filter_bias_and_bn=args.filter_bias_and_bn,
         weight_decay=args.weight_decay,
-        momentum=args.momentum,
+        loss_scale=args.loss_scale,
+        **args.optimizer_detail,
     )
+
+    # load the checkpoint if provided
+    if args.ckpt:
+        _logger.info(f"Loading checkpoint from {args.ckpt}")
+        param_dict = ms.load_checkpoint(args.ckpt)
+        ms.load_param_into_net(net_with_loss, param_dict)
+        ms.load_param_into_net(optimizer, param_dict)
 
     # create model
     loss_scale_manager = FixedLossScaleManager(
@@ -205,9 +198,8 @@ def train(args: Namespace) -> None:
         val_dataset,
         interval=args.val_interval,
         max_epoch=args.num_epochs,
-        save_best=True,
-        save_last=True,
-        net_to_save=net_with_loss,
+        save_best=args.save_best,
+        save_last=args.save_last,
         best_ckpt_path=best_ckpt_path,
         last_ckpt_path=last_ckpt_path,
         summary_dir=summary_outdir,
@@ -221,10 +213,10 @@ def train(args: Namespace) -> None:
 
 
 def main():
+    setup_default_logging()
     args = parse_args(description="Training script")
     train(args)
 
 
 if __name__ == "__main__":
-    logging.getLogger().setLevel(logging.INFO)
     main()

@@ -147,3 +147,6 @@ events.out*
 
 # Evaluation Result
 result_keypoint.json
+
+# system
+.DS_Store
