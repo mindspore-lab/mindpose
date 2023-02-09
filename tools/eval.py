@@ -14,9 +14,12 @@ from argparse import Namespace
 
 import mindspore as ms
 from common.config import parse_args
+from common.log import setup_default_logging
 from mindpose.data import create_dataset, create_pipeline
 from mindpose.engine import create_evaluator, create_inferencer
 from mindpose.models import create_decoder, create_eval_network, create_network
+
+_logger = logging.getLogger(__name__)
 
 
 def eval(args: Namespace) -> None:
@@ -89,15 +92,18 @@ def eval(args: Namespace) -> None:
 
     # perform evaluation
     result = evaluator(outputs)
-    with open(os.path.join(args.outdir, "result.json"), "w") as f:
+    result_path = os.path.join(args.outdir, "result.json")
+    with open(result_path, "w") as f:
         json.dump(result, f, indent=4)
+    _logger.info(result)
+    _logger.info(f"Result is saved at `{result_path}`.")
 
 
 def main():
+    setup_default_logging()
     args = parse_args(description="Evaluation script", need_ckpt=True)
     eval(args)
 
 
 if __name__ == "__main__":
-    logging.getLogger().setLevel(logging.INFO)
     main()

@@ -5,6 +5,8 @@ from typing import Any, Dict
 
 import yaml
 
+_logger = logging.getLogger(__name__)
+
 
 class StoreDictKeyPair(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -33,6 +35,7 @@ def create_parser(
         "--cfg-options",
         nargs="+",
         action=StoreDictKeyPair,
+        default=dict(),
         metavar="KEY1=VAL1 KEY2=VAL2 ...",
     )
     return parser
@@ -53,7 +56,7 @@ def parse_args(description: str = "", need_ckpt: bool = False) -> argparse.Names
 
     del args.cfg_options
 
-    logging.info(args)
+    _logger.info(args)
 
     return args
 
@@ -67,6 +70,5 @@ def parse_yaml(fpath: str) -> Dict[str, Any]:
 def merge_args(
     args1: argparse.Namespace, args2: argparse.Namespace
 ) -> argparse.Namespace:
-    # The vars() function returns the __dict__ attribute to values of the given object e.g {field:value}.
     args = argparse.Namespace(**vars(args1), **vars(args2))
     return args
