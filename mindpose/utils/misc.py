@@ -8,8 +8,8 @@ class Allreduce(nn.Cell):
     """Reduces the tensor data across all devices
     in such a way that all devices will get the same final result."""
 
-    def __init__(self) -> Tensor:
-        super(Allreduce, self).__init__()
+    def __init__(self) -> None:
+        super().__init__()
         self.allreduce_sum = ops.AllReduce(ops.ReduceOp.SUM)
 
     def construct(self, x: Tensor) -> Tensor:

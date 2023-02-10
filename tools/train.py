@@ -60,8 +60,6 @@ def train(args: Namespace) -> None:
         args.train_label,
         dataset_format=args.dataset_format,
         is_train=True,
-        device_num=device_num,
-        rank_id=rank_id,
         num_workers=args.num_parallel_workers,
         config=args.dataset_detail,
     )
@@ -151,7 +149,7 @@ def train(args: Namespace) -> None:
 
     # load the checkpoint if provided
     if args.ckpt:
-        _logger.info(f"Loading checkpoint from {args.ckpt}")
+        _logger.info(f"Loading the checkpoint from {args.ckpt}")
         param_dict = ms.load_checkpoint(args.ckpt)
         ms.load_param_into_net(net_with_loss, param_dict)
         ms.load_param_into_net(optimizer, param_dict)
