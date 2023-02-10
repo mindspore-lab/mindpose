@@ -60,6 +60,8 @@ def train(args: Namespace) -> None:
         args.train_label,
         dataset_format=args.dataset_format,
         is_train=True,
+        device_num=device_num,
+        rank_id=rank_id,
         num_workers=args.num_parallel_workers,
         config=args.dataset_detail,
     )
@@ -69,8 +71,6 @@ def train(args: Namespace) -> None:
         args.val_label,
         dataset_format=args.dataset_format,
         is_train=False,
-        device_num=device_num,
-        rank_id=rank_id,
         use_gt_bbox_for_val=args.val_use_gt_bbox,
         detection_file=args.val_detection_result,
         num_workers=args.num_parallel_workers,
