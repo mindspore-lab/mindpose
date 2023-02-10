@@ -1,9 +1,5 @@
-import glob
-import json
 import logging
 import os
-import shutil
-import time
 from typing import Any, Dict, List, Optional
 
 import mindspore as ms
@@ -40,8 +36,6 @@ class EvalCallback(Callback):
         summary_dir: The directory storing the summary record. Default: "."
         rank_id: Rank id. Default: None
         device_num: Number of devices. Default: None
-        temp_result_dir: The directory holding the temporarily results.
-            It is used for parallel evaluation. Default: "/tmp/result"
     """
 
     def __init__(
@@ -59,7 +53,6 @@ class EvalCallback(Callback):
         summary_dir: str = ".",
         rank_id: Optional[int] = None,
         device_num: Optional[int] = None,
-        temp_result_dir: str = "/tmp/result",
     ) -> None:
         self.inferencer = inferencer
         self.evaluator = evaluator
@@ -78,7 +71,6 @@ class EvalCallback(Callback):
         self.summary_dir = summary_dir
         self.rank_id = rank_id if rank_id is not None else 0
         self.device_num = device_num if device_num is not None else 1
-        self.temp_result_dir = temp_result_dir
 
         if self.target_metric_name not in evaluator.metrics:
             raise ValueError(
@@ -96,10 +88,6 @@ class EvalCallback(Callback):
         # store the loss value
         self.loss_meter = AverageMeter()
 
-        # clean the result folder
-        if os.path.isdir(self.temp_result_dir):
-            shutil.rmtree(self.temp_result_dir)
-
     def __enter__(self):
         if self.rank_id == 0:
             self.summary_record = SummaryRecord(self.summary_dir)
@@ -116,6 +104,9 @@ class EvalCallback(Callback):
         self.loss_meter.update(loss)
 
     def on_train_epoch_end(self, run_context: RunContext) -> None:
+        # make sure the inferencer is not for training
+        self.inferencer.net.set_train(False)
+
         cb_param = run_context.original_args()
         cur_epoch = cb_param.cur_epoch_num
 
@@ -142,13 +133,8 @@ class EvalCallback(Callback):
 
         output = dict()
         if cur_epoch % self.interval == 0 or cur_epoch == self.max_epoch:
-            # evaluate on all devices
-            result = self.inferencer(self.dataset)
-            # accumulate all the result from different rank
-            if self.device_num > 1:
-                result = self._accumulate_result(cur_epoch, result)
-
             if self.rank_id == 0:
+                result = self.inferencer(self.dataset)
                 output = self.evaluator(result)
                 _logger.info(output)
                 target_result = output[self.target_metric_name]
@@ -168,40 +154,6 @@ class EvalCallback(Callback):
             self.summary_record.add_value("scalar", "epoch", Tensor(cur_epoch))
             self.summary_record.record(cb_param.cur_step_num)
             self.summary_record.flush()
-
-    def _accumulate_result(
-        self, epoch: int, result: List[Dict[str, Any]]
-    ) -> Optional[List[Dict[str, Any]]]:
-        # TODO: use Allgather instead of doing file IO
-        outdir = os.path.join(self.temp_result_dir, f"epoch_{epoch}")
-        os.makedirs(outdir, exist_ok=True)
-
-        fname = f"rank_{self.rank_id}.json"
-        fpath = os.path.join(outdir, fname)
-
-        with open(fpath, "w") as f:
-            json.dump(result, f)
-
-        # create a signal once the file is finished writing
-        signal_file = f"SUCCESS.{self.rank_id}"
-        signal_path = os.path.join(outdir, signal_file)
-        with open(signal_path, "w") as f:
-            f.write("\n")
-
-        # wait all result finish writing
-        pattern = os.path.join(outdir, "SUCCESS.*")
-        while len(glob.glob(pattern)) != self.device_num:
-            time.sleep(1)
-
-        # accumulate all result to rank 0
-        if self.rank_id == 0:
-            all_result = []
-            pattern = os.path.join(outdir, "rank_*.json")
-            files = sorted(glob.glob(pattern))
-            for path in files:
-                with open(path) as f:
-                    all_result.extend(json.load(f))
-            return all_result
 
     def _save_best_model(self, net: nn.Cell, result: float, cur_epoch: int) -> None:
         _logger.info(

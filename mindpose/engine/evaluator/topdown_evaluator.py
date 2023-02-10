@@ -29,10 +29,10 @@ class TopDownEvaluator(Evaluator):
         result_path: Path of the result file. Default: "./result_keypoints.json"
 
     Inputs:
-        inference_result: Inference result from inference engine
+        | inference_result: Inference result from inference engine
 
     Outputs:
-        evaluation_result: Evaluation result based on the metric
+        | evaluation_result: Evaluation result based on the metric
     """
 
     SUPPORT_METRICS = {"AP"}
