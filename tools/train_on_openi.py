@@ -15,8 +15,7 @@ try:
 except ImportError as e:
     raise ValueError("This script aims to run on the OpenI platform.") from e
 
-from common.config import create_parser, merge_args, parse_args
-from common.log import setup_default_logging
+from common.config import create_parser, merge_cfg_from_yaml, merge_cfg_options
 
 _local_rank = int(os.getenv("RANK_ID", 0))
 _logger = logging.getLogger(__name__)
@@ -79,8 +78,12 @@ def upload_data(src: str, s3_path: str) -> None:
     mox.file.copy_parallel(src_url=abs_src, dst_url=s3_path)
 
 
-def parse_openi_args() -> argparse.Namespace:
-    parser = create_parser(description="OpenI extra arguments")
+def parse_args(
+    project_dir: str,
+    description: str = "",
+    need_ckpt: bool = False,
+) -> argparse.Namespace:
+    parser = create_parser(description=description, need_ckpt=need_ckpt)
     # add arguments
     # the follow arguments are proviced by OpenI, do not change.
     parser.add_argument("--device_target", help="Device target")
@@ -89,12 +92,19 @@ def parse_openi_args() -> argparse.Namespace:
     parser.add_argument("--ckpt_url", help="Path of the ckpt in S3")
     args = parser.parse_args()
 
+    config_path = os.path.join(project_dir, args.config)
+
+    # read the config file and overwrite them into the Namespace
+    merge_cfg_from_yaml(args, config_path)
+
+    # read the config from cfg-options and over write the Namespace
+    merge_cfg_options(args)
+
+    _logger.info(args)
     return args
 
 
 if __name__ == "__main__":
-    setup_default_logging()
-
     _logger.info(os.environ)
 
     # locate the path of the project
@@ -104,9 +114,7 @@ if __name__ == "__main__":
 
     from train import train
 
-    args = parse_args(project_dir, description="Training script")
-    openi_args = parse_openi_args()
-    args = merge_args(args, openi_args)
+    args = parse_args(project_dir, description="Training script on OpenI")
 
     # copy data from S3 to local
     local_data_path = "/home/work/data"
@@ -119,10 +127,12 @@ if __name__ == "__main__":
     if args.ckpt_url:
         args.ckpt = download_ckpt(s3_path=args.ckpt_url, dest="/tmp/ckpt/")
 
-    # start traning job
-    train(args)
-
-    # copy output from local to s3
-    time.sleep(30)
-    if _local_rank == 0:
-        upload_data(src=args.outdir, s3_path=args.train_url)
+    try:
+        # start traning job
+        train(args)
+    except Exception:
+        raise
+    finally:
+        # copy output from local to s3
+        if _local_rank == 0:
+            upload_data(src=args.outdir, s3_path=args.train_url)

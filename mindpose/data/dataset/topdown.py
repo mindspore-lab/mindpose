@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -21,8 +21,8 @@ class TopDownDataset:
 
     Item key in iterator:
         | image: Encoded data for image file
-        | center: Center (x, y) of the bounding box
-        | scale: Scale of the bounding box
+        | center: A placeholder for later pipline using
+        | scale: A placeholder of later pipline using
         | keypoints: Keypoints in (x, y, visibility)
         | rotation: Rotatated degree
         | target: A placeholder for later pipline using
@@ -76,8 +76,6 @@ class TopDownDataset:
 
         Keys:
             | image_file: Path of the image file
-            | center: Center (x, y) of the bounding box
-            | scale: Scale of the bounding box
             | bbox: Bounding box coordinate (x, y, w, h)
             | keypoints: Keypoints in (x, y, visibility)
             | bbox_score: Bounding box score, 1 for ground truth
@@ -97,8 +95,9 @@ class TopDownDataset:
         if self.is_train:
             return (
                 image,
-                record["center"],
-                record["scale"],
+                np.float32(0),  # placeholder for center
+                np.float32(0),  # placeholder for scale
+                np.asarray(record["boxes"], dtype=np.float32),
                 np.asarray(record["keypoints"], dtype=np.float32),
                 record["rotation"],
                 np.float32(0),  # placeholder for target
@@ -106,8 +105,8 @@ class TopDownDataset:
             )
         return (
             image,
-            record["center"],
-            record["scale"],
+            np.float32(0),  # placeholder for center
+            np.float32(0),  # placeholder for scale
             record["rotation"],
             record["image_file"],
             np.asarray(record["boxes"], dtype=np.float32),
@@ -133,28 +132,3 @@ class TopDownDataset:
                 valid_anno["bbox"] = [x1, y1, x2 - x1, y2 - y1]
                 valid_annos.append(valid_anno)
         return valid_annos
-
-    def _xywh2cs(
-        self, x: float, y: float, w: float, h: float
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        aspect_ratio = (
-            self._dataset_cfg["image_size"][0] / self._dataset_cfg["image_size"][1]
-        )
-        center = np.array([x + w * 0.5, y + h * 0.5], dtype=np.float32)
-
-        # perform a random center shift for training dataset
-        if self.is_train and np.random.rand() < 0.3:
-            center += 0.4 * (np.random.rand(2) - 0.5) * [w, h]
-
-        if w > aspect_ratio * h:
-            h = w * 1.0 / aspect_ratio
-        elif w < aspect_ratio * h:
-            w = h * aspect_ratio
-
-        pixel_std = self._dataset_cfg["pixel_std"]
-        scale_padding = self._dataset_cfg["scale_padding"]
-
-        scale = np.array([w / pixel_std, h / pixel_std], dtype=np.float32)
-        # padding to include proper amount of context
-        scale = scale * scale_padding
-        return center, scale

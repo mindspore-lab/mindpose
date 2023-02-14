@@ -3,6 +3,7 @@ _TOPDOWN_TRAIN_COLUMN_NAMES = [
     "image",
     "center",
     "scale",
+    "boxes",
     "keypoints",
     "rotation",
     "target",

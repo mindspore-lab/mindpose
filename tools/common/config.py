@@ -12,7 +12,15 @@ class StoreDictKeyPair(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         my_dict = {}
         for kv in values:
-            k, v = kv.split("=", maxsplit=1)
+            if "=" in kv:
+                k, v = kv.split("=", maxsplit=1)
+            elif ":" in kv:
+                k, v = kv.split(":", maxsplit=1)
+            else:
+                raise ValueError(
+                    "it must be `KEY1=VAL1, ...` or `KEY1:VAL1, ...` pairs."
+                )
+
             try:
                 my_dict[k] = literal_eval(v)
             except Exception:
@@ -44,31 +52,43 @@ def create_parser(
 def parse_args(description: str = "", need_ckpt: bool = False) -> argparse.Namespace:
     parser = create_parser(description=description, need_ckpt=need_ckpt)
     args = parser.parse_args()
-    cfg = parse_yaml(args.config)
 
     # read the config file and overwrite them into the Namespace
-    for k, v in cfg.items():
-        setattr(args, k, v)
+    merge_cfg_from_yaml(args, args.config)
 
     # read the config from cfg-options and over write the Namespace
-    for k, v in args.cfg_options.items():
-        setattr(args, k, v)
-
-    del args.cfg_options
+    merge_cfg_options(args)
 
     _logger.info(args)
 
     return args
 
 
+def merge_cfg_from_yaml(args: argparse.Namespace, config_path: str):
+    cfg = parse_yaml(config_path)
+    for k, v in cfg.items():
+        setattr(args, k, v)
+
+
+def merge_cfg_options(args: argparse.Namespace) -> None:
+    for k, v in args.cfg_options.items():
+        key_list = k.split(".")
+        subargs = args
+        for subkey in key_list[:-1]:
+            try:
+                subargs = getattr(subargs, subkey)
+            except AttributeError:
+                subargs = subargs[subkey]
+        subkey = key_list[-1]
+        try:
+            setattr(subargs, subkey, v)
+        except AttributeError:
+            subargs[subkey] = v
+
+    del args.cfg_options
+
+
 def parse_yaml(fpath: str) -> Dict[str, Any]:
     with open(fpath) as f:
         cfg = yaml.safe_load(f)
     return cfg
-
-
-def merge_args(
-    args1: argparse.Namespace, args2: argparse.Namespace
-) -> argparse.Namespace:
-    args = argparse.Namespace(**vars(args1), **vars(args2))
-    return args

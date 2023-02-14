@@ -28,8 +28,8 @@ class COCOTopDownDataset(TopDownDataset):
 
     Item key in iterator:
         | image: Encoded data for image file
-        | center: Center (x, y) of the bounding box
-        | scale: Scale of the bounding box
+        | center: A placeholder for later pipline using
+        | scale: A placeholder of later pipline using
         | keypoints: Keypoints in (x, y, visibility)
         | rotation: Rotatated degree
         | target: A placeholder for later pipline using
@@ -48,11 +48,7 @@ class COCOTopDownDataset(TopDownDataset):
             Dataset configurations
         """
         dataset_cfg = dict()
-        dataset_cfg["image_size"] = np.array(self.config["image_size"])
-        assert len(dataset_cfg["image_size"]) == 2
         dataset_cfg["det_bbox_thr"] = float(self.config["det_bbox_thr"])
-        dataset_cfg["pixel_std"] = float(self.config["pixel_std"])
-        dataset_cfg["scale_padding"] = float(self.config["scale_padding"])
         return dataset_cfg
 
     def load_dataset(self) -> List[Dict[str, Any]]:
@@ -60,8 +56,6 @@ class COCOTopDownDataset(TopDownDataset):
 
         Keys:
             | image_file: Path of the image file
-            | center: Center (x, y) of the bounding box
-            | scale: Scale of the bounding box
             | bbox: Bounding box coordinate (x, y, w, h)
             | keypoints: Keypoints in (x, y, visibility)
             | bbox_score: Bounding box score, 1 for ground truth
@@ -110,12 +104,9 @@ class COCOTopDownDataset(TopDownDataset):
             if score < self._dataset_cfg["det_bbox_thr"]:
                 continue
 
-            center, scale = self._xywh2cs(*box)
             kpt_db.append(
                 {
                     "image_file": image_file,
-                    "center": center,
-                    "scale": scale,
                     "rotation": 0,
                     "boxes": box,
                     "bbox_ids": bbox_id,
@@ -151,14 +142,10 @@ class COCOTopDownDataset(TopDownDataset):
             # keypoints store the info of x, y, visible for each joint
             keypoints = np.array(anno["keypoints"]).reshape(-1, 3)
 
-            center, scale = self._xywh2cs(*anno["bbox"])
-
             image_file = os.path.join(self.image_root, self.id2name[img_id])
             rec.append(
                 {
                     "image_file": image_file,
-                    "center": center,
-                    "scale": scale,
                     "keypoints": keypoints,
                     "rotation": 0,
                     "boxes": anno["bbox"],

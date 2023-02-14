@@ -188,8 +188,10 @@ def train(args: Namespace) -> None:
     model_outdir = os.path.join(args.outdir, "saved_model")
     os.makedirs(model_outdir, exist_ok=True)
     summary_outdir = os.path.join(args.outdir, "summary")
-    best_ckpt_path = os.path.join(model_outdir, "hrnet_best.ckpt")
-    last_ckpt_path = os.path.join(model_outdir, "hrnet_last.ckpt")
+    # determine the model name
+    model_name = os.path.basename(args.config).replace(".yaml", "")
+    best_ckpt_path = os.path.join(model_outdir, f"{model_name}_best.ckpt")
+    last_ckpt_path = os.path.join(model_outdir, f"{model_name}_last.ckpt")
     eval_cb = EvalCallback(
         inferencer,
         evaluator,
