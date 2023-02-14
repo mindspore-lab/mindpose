@@ -10,7 +10,7 @@ _logger = logging.getLogger(__name__)
 
 
 def load_pretrained(
-    net: Backbone, ckpt_url: str, download_dir: str = "/tmp/mindpose/models"
+    net: Backbone, ckpt_url: str, download_dir: str = "./cache/pretrained/"
 ) -> None:
     """Loading the pretrained backbone's weight from url.
 

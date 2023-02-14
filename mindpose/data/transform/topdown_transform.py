@@ -65,8 +65,68 @@ class TopDownTransform(Transform):
         transform_cfg["flip_pairs"] = np.array(self.config["flip_pairs"])
         transform_cfg["upper_body_ids"] = np.array(self.config["upper_body_ids"])
         transform_cfg["pixel_std"] = float(self.config["pixel_std"])
+        transform_cfg["scale_padding"] = float(self.config["scale_padding"])
 
         return transform_cfg
+
+
+@register("transform", extra_name="topdown_box_to_center_scale")
+class TopDownBoxToCenterScale(TopDownTransform):
+    """Convert the box coordinate to center and scale
+
+    Args:
+        is_train: Whether the transformation is for training/testing. Default: True
+        config: Method-specific configuration. Default: None
+
+    Inputs:
+        | data: Data tuples need to be transformed
+
+    Outputs:
+        | result: Transformed data tuples
+    """
+
+    def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform the state into the transformed state. state is a dictionay
+        storing the informaton of the image and labels, the returned states is
+        the updated dictionary storing the updated image and labels.
+
+        Args:
+            state: Stored information of image and labels
+
+        Returns:
+            Updated inforamtion of image and labels based on the transformation
+
+        Note:
+            | Required `keys` for transform: boxes
+            | Returned `keys` after transform: center, scale
+        """
+        center, scale = self._xywh2cs(*state["boxes"])
+        return dict(center=center, scale=scale)
+
+    def _xywh2cs(
+        self, x: float, y: float, w: float, h: float
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        aspect_ratio = (
+            self._transform_cfg["image_size"][0] / self._transform_cfg["image_size"][1]
+        )
+        center = np.array([x + w * 0.5, y + h * 0.5], dtype=np.float32)
+
+        # perform a random center shift for training dataset
+        if self.is_train and np.random.rand() < 0.3:
+            center += 0.4 * (np.random.rand(2) - 0.5) * [w, h]
+
+        if w > aspect_ratio * h:
+            h = w * 1.0 / aspect_ratio
+        elif w < aspect_ratio * h:
+            w = h * aspect_ratio
+
+        pixel_std = self._transform_cfg["pixel_std"]
+        scale_padding = self._transform_cfg["scale_padding"]
+
+        scale = np.array([w / pixel_std, h / pixel_std], dtype=np.float32)
+        # padding to include proper amount of context
+        scale = scale * scale_padding
+        return center, scale
 
 
 @register("transform", extra_name="topdown_affine_to_single")
@@ -143,8 +203,6 @@ class TopDownGenerateTarget(TopDownTransform):
         sigma: The sigmal size of gausian distribution. Default: 2.0
         use_different_joint_weights: Use extra joint weight in target weight
             calculation. Default: False
-        subpixel_center: When true, the center of the heatmap is in subpixel-level.
-            Otherwise, the center is rounded to nearest pixel. Default: False
 
     Inputs:
         | data: Data tuples need to be transformed
@@ -159,12 +217,10 @@ class TopDownGenerateTarget(TopDownTransform):
         config: Optional[Dict[str, Any]] = None,
         sigma: float = 2.0,
         use_different_joint_weights: bool = False,
-        subpixel_center: bool = False,
     ) -> None:
         super().__init__(is_train=is_train, config=config)
         self.sigma = sigma
         self.use_different_joint_weights = use_different_joint_weights
-        self.subpixel_center = subpixel_center
 
     def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Transform the state into the transformed state. state is a dictionay
@@ -197,22 +253,33 @@ class TopDownGenerateTarget(TopDownTransform):
             target_weight[joint_id] = keypoints[joint_id, 2]
 
             feat_stride = image_size / np.array([W, H])
-            mu_x = keypoints[joint_id][0] / feat_stride[0]
-            mu_y = keypoints[joint_id][1] / feat_stride[1]
-            if not self.subpixel_center:
-                mu_x, mu_y = round(mu_x), round(mu_y)
-
+            mu_x = int(keypoints[joint_id][0] / feat_stride[0] + 0.5)
+            mu_y = int(keypoints[joint_id][1] / feat_stride[1] + 0.5)
             # Check that any part of the gaussian is in-bounds
-            ul = [mu_x - tmp_size, mu_y - tmp_size]
-            br = [mu_x + tmp_size, mu_y + tmp_size]
+            ul = [int(mu_x - tmp_size), int(mu_y - tmp_size)]
+            br = [int(mu_x + tmp_size + 1), int(mu_y + tmp_size + 1)]
             if ul[0] >= W or ul[1] >= H or br[0] < 0 or br[1] < 0:
                 target_weight[joint_id] = 0
 
             if target_weight[joint_id] > 0.5:
-                x = np.arange(W, dtype=np.float32)
-                y = np.arange(H, dtype=np.float32)[:, None]
-                g = np.exp(-((x - mu_x) ** 2 + (y - mu_y) ** 2) / (2 * self.sigma**2))
-                target[joint_id] = g
+                size = 2 * tmp_size + 1
+                x = np.arange(0, size, 1, np.float32)
+                y = x[:, None]
+                x0, y0 = size // 2, size // 2
+                # The gaussian is not normalized,
+                # we want the center value to equal 1
+                g = np.exp(-((x - x0) ** 2 + (y - y0) ** 2) / (2 * self.sigma**2))
+
+                # Usable gaussian range
+                g_x = max(0, -ul[0]), min(br[0], W) - ul[0]
+                g_y = max(0, -ul[1]), min(br[1], H) - ul[1]
+                # Image range
+                img_x = max(0, ul[0]), min(br[0], W)
+                img_y = max(0, ul[1]), min(br[1], H)
+
+                target[joint_id][img_y[0] : img_y[1], img_x[0] : img_x[1]] = g[
+                    g_y[0] : g_y[1], g_x[0] : g_x[1]
+                ]
 
         if self.use_different_joint_weights:
             target_weight = np.multiply(target_weight, joint_weights)

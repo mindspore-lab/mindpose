@@ -93,7 +93,7 @@ class DownLoad:
         with open(file_path, "wb") as f:
             request = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(request) as response:
-                with tqdm(total=response.length, unit="B") as pbar:
+                with tqdm(total=response.length, unit="B", disable=True) as pbar:
                     for chunk in iter(lambda: response.read(chunk_size), b""):
                         if not chunk:
                             break
