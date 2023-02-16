@@ -15,7 +15,7 @@ class TopDownHeatMapDecoder(Decoder):
     Args:
         pixel_std: The scaling factor using in decoding. Default: 200.
         to_original: Convert the coordinate into the raw image. Default: True
-        shift_coordinate: Perform a +-0.25 coordinate shift based on heatmap
+        shift_coordinate: Perform a +-0.25 pixel coordinate shift based on heatmap
             value. Default: True
 
     Inputs:
@@ -49,9 +49,9 @@ class TopDownHeatMapDecoder(Decoder):
     ) -> Tuple[Tensor, Tensor]:
         batch_size = heatmap.shape[0]
 
-        coords, maxvals = self._get_max_preds(heatmap)
+        coords, maxvals, maxvals_mask = self._get_max_preds(heatmap)
         if self.shift_coordinate:
-            coords = self._shift_coordinate(coords, heatmap)
+            coords = self._shift_coordinate(coords, heatmap, maxvals_mask)
         if self.to_original:
             coords = self._transform_preds(coords, center, scale, heatmap.shape[2:])
 
@@ -66,7 +66,7 @@ class TopDownHeatMapDecoder(Decoder):
 
         return all_preds, all_boxes
 
-    def _get_max_preds(self, heatmap: Tensor) -> Tensor:
+    def _get_max_preds(self, heatmap: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
         """Get keypoint predictions from score maps."""
         batch_size = heatmap.shape[0]
         num_joints = heatmap.shape[1]
@@ -74,46 +74,43 @@ class TopDownHeatMapDecoder(Decoder):
         heatmap = ops.reshape(heatmap, (batch_size, num_joints, -1))
         idx, maxvals = ops.max(heatmap, axis=2, keep_dims=True)
 
+        # a bolean mask storing the location of the maximum value
+        maskvals_mask = ops.zeros(heatmap.shape, ms.bool_)
+        maskvals_mask = ops.tensor_scatter_elements(
+            maskvals_mask, idx, ops.ones(idx.shape, ms.bool_), axis=2
+        )
+        maskvals_mask = ops.reshape(maskvals_mask, (batch_size, num_joints, -1, width))
+
         preds = ops.cast(ops.tile(idx, (1, 1, 2)), ms.float32)
 
         preds[:, :, 0] = preds[:, :, 0] % width
         preds[:, :, 1] = ops.floor((preds[:, :, 1]) / width)
 
-        pred_mask = ops.tile(
-            ms.numpy.greater(maxvals, 0.0, dtype=ms.float32), (1, 1, 2)
-        )
+        return preds, maxvals, maskvals_mask
 
-        preds *= pred_mask
-        return preds, maxvals
-
-    def _shift_coordinate(self, coords: Tensor, heatmap: Tensor) -> Tensor:
-        """shift the coordinate by +- 0.25 pixel"""
+    def _shift_coordinate(
+        self, coords: Tensor, heatmap: Tensor, maxvals_mask: Tensor
+    ) -> Tensor:
+        """shift the coordinate by +- 0.25 pixel towards
+        to the location of maximum value"""
         batch_size = coords.shape[0]
         num_joints = coords.shape[1]
-        heatmap_height = heatmap.shape[2]
-        heatmap_width = heatmap.shape[3]
 
-        int_coords = ops.cast(ops.round(coords), ms.int32)
+        heatmap_diff_x = ops.zeros_like(heatmap)
+        heatmap_diff_y = ops.zeros_like(heatmap)
+        heatmap_diff_x[:, :, :, 1:-1] = heatmap[:, :, :, 2:] - heatmap[:, :, :, :-2]
+        heatmap_diff_y[:, :, 1:-1, :] = heatmap[:, :, 2:, :] - heatmap[:, :, :-2, :]
+        heatmap_sign_x = ms.numpy.sign(heatmap_diff_x)
+        heatmap_sign_y = ms.numpy.sign(heatmap_diff_y)
 
-        n = 0
-        p = 0
-        while n < batch_size:
-            while p < num_joints:
-                hm = heatmap[n][p]
-                px = int_coords[n][p][0]
-                py = int_coords[n][p][1]
-                if (
-                    px > 1
-                    and px < heatmap_width - 1
-                    and py > 1
-                    and py < heatmap_height - 1
-                ):
-                    diff_x = hm[py][px + 1] - hm[py][px - 1]
-                    diff_y = hm[py + 1][px] - hm[py - 1][px]
-                    coords[n][p][0] += ms.numpy.sign(diff_x) * 0.25
-                    coords[n][p][1] += ms.numpy.sign(diff_y) * 0.25
-                p += 1
-            n += 1
+        offset_x = ops.masked_select(heatmap_sign_x, maxvals_mask)
+        offset_y = ops.masked_select(heatmap_sign_y, maxvals_mask)
+        offset_x = ops.reshape(offset_x, (batch_size, num_joints)) * 0.25
+        offset_y = ops.reshape(offset_y, (batch_size, num_joints)) * 0.25
+
+        coords[..., 0] += offset_x
+        coords[..., 1] += offset_y
+
         return coords
 
     def _transform_preds(
