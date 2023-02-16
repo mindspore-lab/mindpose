@@ -1,19 +1,19 @@
 from typing import Any, Dict, List, Union
 
-from mindcv.optim.adamw import AdamW
-
 from mindspore.nn.learning_rate_schedule import LearningRateSchedule
 from mindspore.nn.optim import Adagrad, Adam, Momentum, Optimizer, SGD
 
 from ..register import entrypoint, register
 
+from .adamw import AdamW
+
 
 # register the default optimizers
-Adam = register("optim", extra_name="adam")(Adam)
-SGD = register("optim", extra_name="sgd")(SGD)
-Momentum = register("optim", extra_name="momentum")(Momentum)
-Adagrad = register("optim", extra_name="adagrad")(Adagrad)
-AdamW = register("optim", extra_name="adamw")(AdamW)
+register("optim", extra_name="adam")(Adam)
+register("optim", extra_name="sgd")(SGD)
+register("optim", extra_name="momentum")(Momentum)
+register("optim", extra_name="adagrad")(Adagrad)
+register("optim", extra_name="adamw")(AdamW)
 
 
 def init_group_params(

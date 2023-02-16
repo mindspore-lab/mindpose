@@ -1,7 +1,6 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 import mindspore as ms
-import numpy as np
 from mindspore import Tensor
 from mindspore.dataset import Dataset
 from tqdm import tqdm
@@ -56,7 +55,7 @@ class TopDownHeatMapInferencer(Inferencer):
         inference_cfg["has_heatmap_output"] = self.config["has_heatmap_output"]
         inference_cfg["hflip_tta"] = self.config["hflip_tta"]
         inference_cfg["shift_heatmap"] = self.config["shift_heatmap"]
-        inference_cfg["flip_pairs"] = np.array(self.config["flip_pairs"])
+        inference_cfg["flip_pairs"] = self.config["flip_pairs"]
 
         if inference_cfg["hflip_tta"] and not inference_cfg["has_heatmap_output"]:
             raise ValueError("flip TTA need heatmap output.")
@@ -102,7 +101,7 @@ class TopDownHeatMapInferencer(Inferencer):
                     flipped_image, data["center"], data["scale"], data["bbox_scores"]
                 )
                 flipped_heatmap = _flip_back(
-                    flipped_heatmap, self._inference_cfg["flip_pairs"].tolist()
+                    flipped_heatmap, self._inference_cfg["flip_pairs"]
                 )
 
                 if self._inference_cfg["shift_heatmap"]:
@@ -131,6 +130,7 @@ class TopDownHeatMapInferencer(Inferencer):
         return outputs
 
 
+@ms.ms_function
 def _flip_back(flipped_heatmap: Tensor, flip_pairs: List[Tuple[int, int]]) -> Tensor:
     """Flip the flipped heatmaps back to the original form."""
     flipped_heatmap_back = flipped_heatmap.copy()

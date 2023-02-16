@@ -56,7 +56,7 @@ class WarmupMultiStepDecayLR(LearningRateSchedule):
         cur_lr = lr
         k = 0
         for step in range(total_steps):
-            if step == milestones[k] * steps_per_epoch:
+            if step == (milestones[k] - 1) * steps_per_epoch:
                 cur_lr = cur_lr * decay_rate
                 k = min(k + 1, len(milestones) - 1)
             step_lrs.append(cur_lr)
