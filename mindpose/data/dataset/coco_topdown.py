@@ -141,6 +141,8 @@ class COCOTopDownDataset(TopDownDataset):
 
             # keypoints store the info of x, y, visible for each joint
             keypoints = np.array(anno["keypoints"]).reshape(-1, 3)
+            # change visibility of 2 to 1
+            keypoints[:, 2] = np.minimum(1, keypoints[:, 2])
 
             image_file = os.path.join(self.image_root, self.id2name[img_id])
             rec.append(

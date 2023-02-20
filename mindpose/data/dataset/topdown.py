@@ -99,7 +99,7 @@ class TopDownDataset:
                 np.float32(0),  # placeholder for scale
                 np.asarray(record["boxes"], dtype=np.float32),
                 np.asarray(record["keypoints"], dtype=np.float32),
-                record["rotation"],
+                np.float32(record["rotation"]),
                 np.float32(0),  # placeholder for target
                 np.float32(0),  # placeholder for target_weight
             )
@@ -107,7 +107,7 @@ class TopDownDataset:
             image,
             np.float32(0),  # placeholder for center
             np.float32(0),  # placeholder for scale
-            record["rotation"],
+            np.float32(record["rotation"]),
             record["image_file"],
             np.asarray(record["boxes"], dtype=np.float32),
             np.int32(record["bbox_ids"]),

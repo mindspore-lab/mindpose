@@ -53,7 +53,7 @@ class WarmupCosineDecayLR(LearningRateSchedule):
             self.warmup_lr = nn.WarmUpLR(lr, self.warmup_steps)
         self.cosine_decay_lr = nn.CosineDecayLR(min_lr, lr, self.decay_steps)
 
-        self.zero = Tensor(0.0, dtype=ms.float32)
+        self.min_lr = Tensor(min_lr, dtype=ms.float32)
 
     def step_lr(self, global_step: Tensor) -> Tensor:
         if self.warmup_steps > 0:
@@ -65,7 +65,7 @@ class WarmupCosineDecayLR(LearningRateSchedule):
             lr = self.cosine_decay_lr(global_step)
 
         # prevent overflow
-        lr = ops.clip_by_value(lr, clip_value_min=self.zero)
+        lr = ops.clip_by_value(lr, clip_value_min=self.min_lr)
         return lr
 
     def construct(self, global_step: Tensor) -> Tensor:

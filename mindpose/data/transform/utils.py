@@ -146,3 +146,58 @@ def _get_3rd_point(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     third_pt = b + np.array([-direction[1], direction[0]], dtype=np.float32)
 
     return third_pt
+
+
+def get_warp_matrix(
+    theta: float, size_input: np.ndarray, size_dst: np.ndarray, size_target: np.ndarray
+) -> np.ndarray:
+    """Calculate the transformation matrix based on Unbiased Data Processing (UDP)
+
+    Args:
+        theta: Rotation angle in degrees.
+        size_input: Size of input image [w, h].
+        size_dst: Size of output image [w, h].
+        size_target: Size of ROI in input plane [w, h].
+
+    Returns:
+        A matrix for transformation.
+    """
+    theta = np.deg2rad(theta)
+    matrix = np.zeros((2, 3), dtype=np.float32)
+    scale_x = size_dst[0] / size_target[0]
+    scale_y = size_dst[1] / size_target[1]
+    matrix[0, 0] = np.cos(theta) * scale_x
+    matrix[0, 1] = -np.sin(theta) * scale_x
+    matrix[0, 2] = scale_x * (
+        -0.5 * size_input[0] * np.cos(theta)
+        + 0.5 * size_input[1] * np.sin(theta)
+        + 0.5 * size_target[0]
+    )
+    matrix[1, 0] = np.sin(theta) * scale_y
+    matrix[1, 1] = np.cos(theta) * scale_y
+    matrix[1, 2] = scale_y * (
+        -0.5 * size_input[0] * np.sin(theta)
+        - 0.5 * size_input[1] * np.cos(theta)
+        + 0.5 * size_target[1]
+    )
+    return matrix
+
+
+def warp_affine_joints(joints: np.ndarray, mat: np.ndarray) -> np.ndarray:
+    """Apply affine transformation defined by the transform matrix on the joints.
+
+    Args:
+        joints: Origin coordinate of joints.
+        mat: The affine matrix.
+
+    Returns:
+        Result coordinate of joints.
+
+    """
+    joints = np.array(joints)
+    shape = joints.shape
+    joints = joints.reshape(-1, 2)
+    warped_joints = np.dot(
+        np.concatenate((joints, joints[:, 0:1] * 0 + 1), axis=1), mat.T
+    ).reshape(shape)
+    return warped_joints
