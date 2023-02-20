@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import time
+import urllib.request
 from typing import Any, Callable
 
 try:
@@ -56,7 +57,8 @@ def install_packages(project_dir: str) -> None:
 def download_data(s3_path: str, dest: str) -> None:
     if not os.path.isdir(dest):
         os.makedirs(dest)
-
+    dest = os.path.abspath(dest)
+    _logger.info(f"Dowloading data from `{s3_path}` to `{dest}`.")
     mox.file.copy_parallel(src_url=s3_path, dst_url=dest)
 
 
@@ -66,15 +68,25 @@ def download_ckpt(s3_path: str, dest: str) -> str:
         os.makedirs(dest)
 
     filename = os.path.basename(s3_path)
-    dst_url = os.path.join(dest, filename)
+    dst_url = os.path.abspath(os.path.join(dest, filename))
 
+    _logger.info(f"Dowloading checkpoint from `{s3_path}` to `{dst_url}`.")
     mox.file.copy(src_url=s3_path, dst_url=dst_url)
-    return dst_url
+
+
+@run_with_single_rank(local_rank=_local_rank, signal="/tmp/DOWNLOAD_BK_CKPT_SUCCESS")
+def download_backbone_ckpt(url: str, dest: str) -> str:
+    if not os.path.isdir(dest):
+        os.makedirs(dest)
+
+    file_path = os.path.abspath(os.path.join(dest, os.path.basename(url)))
+    _logger.info(f"Dowloading backbone checkpoint from `{url}` to `{file_path}`.")
+    urllib.request.urlretrieve(url, file_path)
 
 
 def upload_data(src: str, s3_path: str) -> None:
     abs_src = os.path.abspath(src)
-    _logger.info(f"Uploading data from {abs_src} to s3")
+    _logger.info(f"Uploading data from `{abs_src}` to `{s3_path}`.")
     mox.file.copy_parallel(src_url=abs_src, dst_url=s3_path)
 
 
@@ -123,9 +135,21 @@ if __name__ == "__main__":
     # symlink the data directory to path in configure file
     os.symlink(local_data_path, "data", target_is_directory=True)
 
+    # download backbone ckpt if provided
+    if args.backbone_pretrained:
+        download_backbone_ckpt(args.backbone_ckpt_url, "/tmp/bk_ckpt/")
+        local_path = os.path.abspath(
+            os.path.join("/tmp/bk_ckpt/", os.path.basename(args.backbone_ckpt_url))
+        )
+        args.backbone_ckpt_url = local_path
+
     # copy ckpt from S3 to local
     if args.ckpt_url:
-        args.ckpt = download_ckpt(s3_path=args.ckpt_url, dest="/tmp/ckpt/")
+        download_ckpt(s3_path=args.ckpt_url, dest="/tmp/ckpt/")
+        local_path = os.path.abspath(
+            os.path.join("/tmp/ckpt/", os.path.basename(args.args.ckpt))
+        )
+        args.ckpt = local_path
 
     try:
         # start traning job

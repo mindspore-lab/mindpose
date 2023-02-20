@@ -1,6 +1,7 @@
 from typing import Optional
 
 import mindspore.nn as nn
+import mindspore.ops as ops
 from mindspore import Tensor
 
 from ...register import register
@@ -26,15 +27,19 @@ class JointsMSELoss(Loss):
 
     def __init__(self, use_target_weight: bool = False) -> None:
         super().__init__()
-        self.criterion = nn.MSELoss(reduction="mean")
         self.use_target_weight = use_target_weight
+        if self.use_target_weight:
+            self.criterion = nn.MSELoss(reduction="none")
+        else:
+            self.criterion = nn.MSELoss(reduction="mean")
 
     def construct(
         self, pred: Tensor, target: Tensor, target_weight: Optional[Tensor] = None
     ) -> Tensor:
         if self.use_target_weight:
-            target_weight = target_weight[..., None, None]
-            loss = self.criterion(pred * target_weight, target * target_weight)
+            loss = self.criterion(pred, target)
+            loss = target_weight[..., None, None] * loss
+            loss = ops.mean(loss)
         else:
             loss = self.criterion(pred, target)
         return loss

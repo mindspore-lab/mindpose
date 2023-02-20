@@ -17,6 +17,7 @@ class TopDownHeatMapDecoder(Decoder):
         to_original: Convert the coordinate into the raw image. Default: True
         shift_coordinate: Perform a +-0.25 pixel coordinate shift based on heatmap
             value. Default: True
+        use_udp: Use Unbiased Data Processing (UDP) decoding. Default: False
 
     Inputs:
         | heatmap: The ordinary output based on heatmap-based model,
@@ -38,11 +39,13 @@ class TopDownHeatMapDecoder(Decoder):
         pixel_std: float = 200.0,
         to_original: bool = True,
         shift_coordinate: bool = True,
+        use_udp: bool = False,
     ) -> None:
         super().__init__()
         self.pixel_std = pixel_std
         self.to_original = to_original
         self.shift_coordinate = shift_coordinate
+        self.use_udp = use_udp
 
     def construct(
         self, heatmap: Tensor, center: Tensor, scale: Tensor, score: Tensor
@@ -124,8 +127,12 @@ class TopDownHeatMapDecoder(Decoder):
         translation to map them back to the image."""
         scale = scale * self.pixel_std
 
-        scale_x = scale[:, 0:1] / heatmap_shape[1]
-        scale_y = scale[:, 1:2] / heatmap_shape[0]
+        if self.use_udp:
+            scale_x = scale[:, 0:1] / (heatmap_shape[1] - 1.0)
+            scale_y = scale[:, 1:2] / (heatmap_shape[0] - 1.0)
+        else:
+            scale_x = scale[:, 0:1] / heatmap_shape[1]
+            scale_y = scale[:, 1:2] / heatmap_shape[0]
 
         target_coords = ops.ones_like(coords)
         target_coords[:, :, 0] = (

@@ -7,11 +7,18 @@ from ...register import register
 
 from ..column_names import COLUMN_MAP
 from .transform import Transform
-from .utils import affine_transform, fliplr_joints, get_affine_transform
+from .utils import (
+    affine_transform,
+    fliplr_joints,
+    get_affine_transform,
+    get_warp_matrix,
+    warp_affine_joints,
+)
 
 __all__ = [
     "TopDownTransform",
-    "TopDownAffineToSingle",
+    "TopDownBoxToCenterScale",
+    "TopDownAffine",
     "TopDownGenerateTarget",
     "TopDownHorizontalRandomFlip",
     "TopDownHalfBodyTransform",
@@ -61,18 +68,23 @@ class TopDownTransform(Transform):
         assert len(transform_cfg["image_size"]) == 2
         assert len(transform_cfg["heatmap_size"]) == 2
 
-        transform_cfg["joint_weights"] = np.array(self.config["joint_weights"])
         transform_cfg["flip_pairs"] = np.array(self.config["flip_pairs"])
         transform_cfg["upper_body_ids"] = np.array(self.config["upper_body_ids"])
         transform_cfg["pixel_std"] = float(self.config["pixel_std"])
         transform_cfg["scale_padding"] = float(self.config["scale_padding"])
+
+        if "joint_weights" in self.config:
+            transform_cfg["joint_weights"] = np.array(self.config["joint_weights"])
+        else:
+            transform_cfg["joint_weights"] = None
 
         return transform_cfg
 
 
 @register("transform", extra_name="topdown_box_to_center_scale")
 class TopDownBoxToCenterScale(TopDownTransform):
-    """Convert the box coordinate to center and scale
+    """Convert the box coordinate to center and scale. If `is_train` is True,
+    the center will be randomly shifted by a small amount.
 
     Args:
         is_train: Whether the transformation is for training/testing. Default: True
@@ -129,14 +141,15 @@ class TopDownBoxToCenterScale(TopDownTransform):
         return center, scale
 
 
-@register("transform", extra_name="topdown_affine_to_single")
-class TopDownAffineToSingle(TopDownTransform):
+@register("transform", extra_name="topdown_affine")
+class TopDownAffine(TopDownTransform):
     """Affine transform the image, and the transform image will
     contain single instance only.
 
     Args:
         is_train: Whether the transformation is for training/testing. Default: True
         config: Method-specific configuration. Default: None
+        use_udp: Use Unbiased Data Processing (UDP) affine transform. Default: False
 
     Inputs:
         | data: Data tuples need to be transformed
@@ -144,6 +157,15 @@ class TopDownAffineToSingle(TopDownTransform):
     Outputs:
         | result: Transformed data tuples
     """
+
+    def __init__(
+        self,
+        is_train: bool = True,
+        config: Optional[Dict[str, Any]] = None,
+        use_udp: bool = False,
+    ) -> None:
+        super().__init__(is_train=is_train, config=config)
+        self.use_udp = use_udp
 
     def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Transform the state into the transformed state. state is a dictionay
@@ -161,6 +183,11 @@ class TopDownAffineToSingle(TopDownTransform):
                 keypoints (optional)
             | Returned `keys` after transform: image, keypoints (optional)
         """
+        if self.use_udp:
+            return self._udp_affine(state)
+        return self._affine(state)
+
+    def _affine(self, state: Dict[str, Any]) -> Dict[str, Any]:
         image_size = self._transform_cfg["image_size"]
         pixel_std = self._transform_cfg["pixel_std"]
 
@@ -192,6 +219,34 @@ class TopDownAffineToSingle(TopDownTransform):
 
         return transformed_state
 
+    def _udp_affine(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        image_size = self._transform_cfg["image_size"]
+        pixel_std = self._transform_cfg["pixel_std"]
+
+        trans = get_warp_matrix(
+            state["rotation"],
+            state["center"] * 2.0,
+            image_size - 1.0,
+            state["scale"] * pixel_std,
+        )
+
+        transformed_state = dict()
+
+        transformed_state["image"] = cv2.warpAffine(
+            state["image"],
+            trans,
+            (int(image_size[0]), int(image_size[1])),
+            flags=cv2.INTER_LINEAR,
+        )
+
+        if "keypoints" in state:
+            transformed_state["keypoints"] = state["keypoints"]
+            transformed_state["keypoints"][:, :2] = warp_affine_joints(
+                state["keypoints"][:, 0:2], trans
+            )
+
+        return transformed_state
+
 
 @register("transform", extra_name="topdown_generate_target")
 class TopDownGenerateTarget(TopDownTransform):
@@ -203,6 +258,7 @@ class TopDownGenerateTarget(TopDownTransform):
         sigma: The sigmal size of gausian distribution. Default: 2.0
         use_different_joint_weights: Use extra joint weight in target weight
             calculation. Default: False
+        use_udp: Use Unbiased Data Processing (UDP) encoding. Default: False
 
     Inputs:
         | data: Data tuples need to be transformed
@@ -217,10 +273,21 @@ class TopDownGenerateTarget(TopDownTransform):
         config: Optional[Dict[str, Any]] = None,
         sigma: float = 2.0,
         use_different_joint_weights: bool = False,
+        use_udp: bool = False,
     ) -> None:
         super().__init__(is_train=is_train, config=config)
         self.sigma = sigma
         self.use_different_joint_weights = use_different_joint_weights
+        self.use_udp = use_udp
+
+        if (
+            self.use_different_joint_weights
+            and self._transform_cfg["joint_weights"] is None
+        ):
+            raise ValueError(
+                "`joint_weights` must be provided "
+                "if `use_different_joint_weights` is True."
+            )
 
     def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Transform the state into the transformed state. state is a dictionay
@@ -237,17 +304,31 @@ class TopDownGenerateTarget(TopDownTransform):
             | Required `keys` for transform: keypoints
             | Returned `keys` after transform: target, target_weight
         """
+        if self.use_udp:
+            return self._udp_encoding(state)
+        return self._encoding(state)
+
+    def _encoding(self, state: Dict[str, Any]) -> Dict[str, Any]:
         image_size = self._transform_cfg["image_size"]
         W, H = self._transform_cfg["heatmap_size"]
         joint_weights = self._transform_cfg["joint_weights"]
         keypoints = state["keypoints"]
 
         num_joints = keypoints.shape[0]
-        target_weight = np.zeros((num_joints, 1), dtype=np.float32)
+        target_weight = np.zeros(num_joints, dtype=np.float32)
         target = np.zeros((num_joints, H, W), dtype=np.float32)
 
         # 3-sigma rule
         tmp_size = self.sigma * 3
+
+        # gaussian kernel
+        size = 2 * tmp_size + 1
+        x = np.arange(0, size, 1, np.float32)
+        y = x[:, None]
+        x0, y0 = size // 2, size // 2
+        # The gaussian is not normalized,
+        # we want the center value to equal 1
+        g = np.exp(-((x - x0) ** 2 + (y - y0) ** 2) / (2 * self.sigma**2))
 
         for joint_id in range(num_joints):
             target_weight[joint_id] = keypoints[joint_id, 2]
@@ -260,14 +341,62 @@ class TopDownGenerateTarget(TopDownTransform):
             br = [int(mu_x + tmp_size + 1), int(mu_y + tmp_size + 1)]
             if ul[0] >= W or ul[1] >= H or br[0] < 0 or br[1] < 0:
                 target_weight[joint_id] = 0
+                continue
 
             if target_weight[joint_id] > 0.5:
-                size = 2 * tmp_size + 1
-                x = np.arange(0, size, 1, np.float32)
-                y = x[:, None]
-                x0, y0 = size // 2, size // 2
-                # The gaussian is not normalized,
-                # we want the center value to equal 1
+                # Usable gaussian range
+                g_x = max(0, -ul[0]), min(br[0], W) - ul[0]
+                g_y = max(0, -ul[1]), min(br[1], H) - ul[1]
+                # Image range
+                img_x = max(0, ul[0]), min(br[0], W)
+                img_y = max(0, ul[1]), min(br[1], H)
+
+                target[joint_id][img_y[0] : img_y[1], img_x[0] : img_x[1]] = g[
+                    g_y[0] : g_y[1], g_x[0] : g_x[1]
+                ]
+
+        if self.use_different_joint_weights:
+            target_weight = np.multiply(target_weight, joint_weights)
+
+        transformed_state = dict(target=target, target_weight=target_weight)
+        return transformed_state
+
+    def _udp_encoding(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        image_size = self._transform_cfg["image_size"]
+        W, H = self._transform_cfg["heatmap_size"]
+        joint_weights = self._transform_cfg["joint_weights"]
+        keypoints = state["keypoints"]
+
+        num_joints = keypoints.shape[0]
+        target_weight = np.zeros(num_joints, dtype=np.float32)
+        target = np.zeros((num_joints, H, W), dtype=np.float32)
+
+        # 3-sigma rule
+        tmp_size = self.sigma * 3
+
+        size = 2 * tmp_size + 1
+        x = np.arange(0, size, 1, np.float32)
+        y = x[:, None]
+        x0, y0 = size // 2, size // 2
+
+        for joint_id in range(num_joints):
+            target_weight[joint_id] = keypoints[joint_id, 2]
+
+            feat_stride = (image_size - 1.0) / (np.array([W, H]) - 1.0)
+            mu_x = int(keypoints[joint_id][0] / feat_stride[0] + 0.5)
+            mu_y = int(keypoints[joint_id][1] / feat_stride[1] + 0.5)
+            # Check that any part of the gaussian is in-bounds
+            ul = [int(mu_x - tmp_size), int(mu_y - tmp_size)]
+            br = [int(mu_x + tmp_size + 1), int(mu_y + tmp_size + 1)]
+            if ul[0] >= W or ul[1] >= H or br[0] < 0 or br[1] < 0:
+                target_weight[joint_id] = 0
+                continue
+
+            if target_weight[joint_id] > 0.5:
+                mu_x_ac = keypoints[joint_id][0] / feat_stride[0]
+                mu_y_ac = keypoints[joint_id][1] / feat_stride[1]
+                x0 += mu_x_ac - mu_x
+                y0 += mu_y_ac - mu_y
                 g = np.exp(-((x - x0) ** 2 + (y - y0) ** 2) / (2 * self.sigma**2))
 
                 # Usable gaussian range
@@ -284,7 +413,7 @@ class TopDownGenerateTarget(TopDownTransform):
         if self.use_different_joint_weights:
             target_weight = np.multiply(target_weight, joint_weights)
 
-        transformed_state = dict(target=target, target_weight=target_weight.squeeze())
+        transformed_state = dict(target=target, target_weight=target_weight)
         return transformed_state
 
 
@@ -452,7 +581,6 @@ class TopDownHalfBodyTransform(TopDownTransform):
             np.sum(keypoints[:, 2]) > self.num_joints_half_body
             and np.random.rand() < self.prob_half_body
         ):
-
             c_half_body, s_half_body = self.half_body_transform(
                 keypoints, num_joints=num_joints
             )
@@ -515,11 +643,11 @@ class TopDownRandomScaleRotation(TopDownTransform):
         sf = self.scale_factor
         rf = self.rot_factor
 
-        s_factor = np.clip(np.random.randn() * sf + 1, 1 - sf, 1 + sf)
+        s_factor = np.clip(np.random.randn() * sf + 1, 1 - sf, 1 + sf, dtype=np.float32)
         s = s * s_factor
 
-        r_factor = np.clip(np.random.randn() * rf, -rf * 2, rf * 2)
-        r = r_factor if np.random.rand() <= self.rot_prob else 0
+        r_factor = np.clip(np.random.randn() * rf, -rf * 2, rf * 2, dtype=np.float32)
+        r = r_factor if np.random.rand() <= self.rot_prob else np.float32(0.0)
 
         transformed_state = dict(scale=s, rotation=r)
         return transformed_state

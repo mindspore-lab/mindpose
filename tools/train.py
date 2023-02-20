@@ -26,7 +26,7 @@ from mindpose.models import (
 )
 from mindpose.optim import create_optimizer
 from mindpose.scheduler import create_lr_scheduler
-from mindspore import FixedLossScaleManager, Model
+from mindspore import DynamicLossScaleManager, Model
 
 ms.set_seed(0)
 
@@ -113,6 +113,8 @@ def train(args: Namespace) -> None:
         neck_out_channels=args.neck_out_channels,
         num_joints=args.num_joints,
     )
+    num_params = sum([param.size for param in net.get_parameters()])
+    _logger.info(f"Model param: {num_params}")
 
     # create evaluation network
     decoder = create_decoder(args.decoder_name, **args.decoder_detail)
@@ -143,7 +145,6 @@ def train(args: Namespace) -> None:
         learning_rate=lr_scheduler,
         filter_bias_and_bn=args.filter_bias_and_bn,
         weight_decay=args.weight_decay,
-        loss_scale=args.loss_scale,
         **args.optimizer_detail,
     )
 
@@ -155,9 +156,7 @@ def train(args: Namespace) -> None:
         ms.load_param_into_net(optimizer, param_dict)
 
     # create model
-    loss_scale_manager = FixedLossScaleManager(
-        loss_scale=args.loss_scale, drop_overflow_update=False
-    )
+    loss_scale_manager = DynamicLossScaleManager()
     model = Model(
         network=net_with_loss,
         optimizer=optimizer,

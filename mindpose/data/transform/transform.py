@@ -74,5 +74,6 @@ class Transform:
         states.update(transformed_states)
 
         # unpack the argument for mindspore dataset API
-        final_states = {k: states[k] for k in self._required_field}
-        return tuple(final_states.values())
+        final_states = {k: np.asarray(states[k]) for k in self._required_field}
+        tuples = tuple(final_states.values())
+        return tuples
