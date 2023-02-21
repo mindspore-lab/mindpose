@@ -35,7 +35,7 @@ def eval(args: Namespace) -> None:
         use_gt_bbox_for_val=args.val_use_gt_bbox,
         detection_file=args.val_detection_result,
         num_workers=args.num_parallel_workers,
-        config=args.dataset_detail,
+        config=args.dataset_setting,
     )
 
     val_dataset = create_pipeline(
@@ -47,7 +47,7 @@ def eval(args: Namespace) -> None:
         normalize_mean=args.normalize_mean,
         normalize_std=args.normalize_std,
         num_workers=args.num_parallel_workers,
-        config=args.dataset_detail,
+        config=args.dataset_setting,
     )
 
     # create network
@@ -55,22 +55,26 @@ def eval(args: Namespace) -> None:
         args.backbone_name,
         args.head_name,
         neck_name=args.neck_name,
+        backbone_pretrained=False,
         in_channels=args.in_channels,
         neck_out_channels=args.neck_out_channels,
         num_joints=args.num_joints,
+        backbone_args=args.backbone_setting,
+        neck_args=args.neck_setting,
+        head_args=args.head_setting,
     )
     ms.load_checkpoint(args.ckpt, net, strict_load=False)
 
     # add decoder head
-    decoder = create_decoder(args.decoder_name, **args.decoder_detail)
+    decoder = create_decoder(args.decoder_name, **args.decoder_setting)
     net = create_eval_network(net, decoder)
 
     # create inferencer
     inferencer = create_inferencer(
         net=net,
         name=args.inference_method,
-        config=args.eval_detail,
-        dataset_config=args.dataset_detail,
+        config=args.eval_setting,
+        dataset_config=args.dataset_setting,
         decoder=decoder,
         progress_bar=True,
     )
@@ -82,8 +86,8 @@ def eval(args: Namespace) -> None:
         annotation_file=args.val_label,
         name=args.eval_method,
         metric=args.eval_metric,
-        config=args.eval_detail,
-        dataset_config=args.dataset_detail,
+        config=args.eval_setting,
+        dataset_config=args.dataset_setting,
         result_path=keypoint_result_tmp_path,
     )
 

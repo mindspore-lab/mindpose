@@ -32,7 +32,7 @@ def visual_pred_keypoint(args: Namespace) -> None:
         use_gt_bbox_for_val=args.val_use_gt_bbox,
         detection_file=args.val_detection_result,
         num_workers=args.num_parallel_workers,
-        config=args.dataset_detail,
+        config=args.dataset_setting,
     )
 
     # create pipeline
@@ -45,7 +45,7 @@ def visual_pred_keypoint(args: Namespace) -> None:
         normalize_mean=args.normalize_mean,
         normalize_std=args.normalize_std,
         num_workers=args.num_parallel_workers,
-        config=args.dataset_detail,
+        config=args.dataset_setting,
     )
 
     # create network
@@ -53,14 +53,18 @@ def visual_pred_keypoint(args: Namespace) -> None:
         args.backbone_name,
         args.head_name,
         neck_name=args.neck_name,
+        backbone_pretrained=False,
         in_channels=args.in_channels,
         neck_out_channels=args.neck_out_channels,
         num_joints=args.num_joints,
+        backbone_args=args.backbone_setting,
+        neck_args=args.neck_setting,
+        head_args=args.head_setting,
     )
     ms.load_checkpoint(args.ckpt, net, strict_load=False)
 
     # create evaluation network
-    decoder = create_decoder(args.decoder_name, **args.decoder_detail)
+    decoder = create_decoder(args.decoder_name, **args.decoder_setting)
     net = create_eval_network(net, decoder, output_raw=False)
 
     for i, data in enumerate(dataset.create_dict_iterator(num_epochs=1)):
