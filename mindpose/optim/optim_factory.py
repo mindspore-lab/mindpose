@@ -1,11 +1,9 @@
 from typing import Any, Dict, List, Union
 
 from mindspore.nn.learning_rate_schedule import LearningRateSchedule
-from mindspore.nn.optim import Adagrad, Adam, Momentum, Optimizer, SGD
+from mindspore.nn.optim import Adagrad, Adam, AdamWeightDecay, Momentum, Optimizer, SGD
 
 from ..register import entrypoint, register
-
-from .adamw import AdamW
 
 
 # register the default optimizers
@@ -13,7 +11,7 @@ register("optim", extra_name="adam")(Adam)
 register("optim", extra_name="sgd")(SGD)
 register("optim", extra_name="momentum")(Momentum)
 register("optim", extra_name="adagrad")(Adagrad)
-register("optim", extra_name="adamw")(AdamW)
+register("optim", extra_name="adamw")(AdamWeightDecay)
 
 
 def init_group_params(
@@ -67,6 +65,11 @@ def create_optimizer(
     """
     if weight_decay and filter_bias_and_bn:
         params = init_group_params(params, weight_decay)
+
+    if name in {"adamw" or "AdamWeightDecay"}:
+        return entrypoint("optim", name)(
+            params=params, learning_rate=learning_rate, **kwargs
+        )
 
     return entrypoint("optim", name)(
         params=params, learning_rate=learning_rate, loss_scale=loss_scale, **kwargs

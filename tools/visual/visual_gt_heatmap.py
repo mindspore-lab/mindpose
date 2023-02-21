@@ -32,7 +32,7 @@ def visual_gt_heatmap(args: Namespace) -> None:
         dataset_format=args.dataset_format,
         is_train=True,
         num_workers=args.num_parallel_workers,
-        config=args.dataset_detail,
+        config=args.dataset_setting,
     )
 
     # create pipeline
@@ -45,7 +45,7 @@ def visual_gt_heatmap(args: Namespace) -> None:
         normalize=False,
         hwc_to_chw=False,
         num_workers=args.num_parallel_workers,
-        config=args.dataset_detail,
+        config=args.dataset_setting,
     )
 
     for i, data in enumerate(

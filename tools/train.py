@@ -63,7 +63,7 @@ def train(args: Namespace) -> None:
         device_num=device_num,
         rank_id=rank_id,
         num_workers=args.num_parallel_workers,
-        config=args.dataset_detail,
+        config=args.dataset_setting,
     )
 
     val_dataset = create_dataset(
@@ -74,7 +74,7 @@ def train(args: Namespace) -> None:
         use_gt_bbox_for_val=args.val_use_gt_bbox,
         detection_file=args.val_detection_result,
         num_workers=args.num_parallel_workers,
-        config=args.dataset_detail,
+        config=args.dataset_setting,
     )
 
     # create pipeline
@@ -87,7 +87,7 @@ def train(args: Namespace) -> None:
         normalize_mean=args.normalize_mean,
         normalize_std=args.normalize_std,
         num_workers=args.num_parallel_workers,
-        config=args.dataset_detail,
+        config=args.dataset_setting,
     )
 
     val_dataset = create_pipeline(
@@ -99,7 +99,7 @@ def train(args: Namespace) -> None:
         normalize_mean=args.normalize_mean,
         normalize_std=args.normalize_std,
         num_workers=args.num_parallel_workers,
-        config=args.dataset_detail,
+        config=args.dataset_setting,
     )
 
     # create network
@@ -112,16 +112,19 @@ def train(args: Namespace) -> None:
         in_channels=args.in_channels,
         neck_out_channels=args.neck_out_channels,
         num_joints=args.num_joints,
+        backbone_args=args.backbone_setting,
+        neck_args=args.neck_setting,
+        head_args=args.head_setting,
     )
     num_params = sum([param.size for param in net.get_parameters()])
     _logger.info(f"Model param: {num_params}")
 
     # create evaluation network
-    decoder = create_decoder(args.decoder_name, **args.decoder_detail)
+    decoder = create_decoder(args.decoder_name, **args.decoder_setting)
     val_net = create_eval_network(net, decoder)
 
     # create loss
-    loss = create_loss(args.loss, **args.loss_detail)
+    loss = create_loss(args.loss, **args.loss_setting)
 
     # create net_with_loss
     net_with_loss = create_network_with_loss(
@@ -135,7 +138,7 @@ def train(args: Namespace) -> None:
         total_epochs=args.num_epochs,
         steps_per_epoch=train_dataset.get_dataset_size(),
         warmup=args.warmup,
-        **args.lr_scheduler_detail,
+        **args.lr_scheduler_setting,
     )
 
     # create optimizer
@@ -145,7 +148,7 @@ def train(args: Namespace) -> None:
         learning_rate=lr_scheduler,
         filter_bias_and_bn=args.filter_bias_and_bn,
         weight_decay=args.weight_decay,
-        **args.optimizer_detail,
+        **args.optimizer_setting,
     )
 
     # load the checkpoint if provided
@@ -168,8 +171,8 @@ def train(args: Namespace) -> None:
     inferencer = create_inferencer(
         net=val_net,
         name=args.inference_method,
-        config=args.eval_detail,
-        dataset_config=args.dataset_detail,
+        config=args.eval_setting,
+        dataset_config=args.dataset_setting,
         decoder=decoder,
     )
 
@@ -178,8 +181,8 @@ def train(args: Namespace) -> None:
         annotation_file=args.val_label,
         name=args.eval_method,
         metric=args.eval_metric,
-        config=args.eval_detail,
-        dataset_config=args.dataset_detail,
+        config=args.eval_setting,
+        dataset_config=args.dataset_setting,
         result_path=keypoint_result_tmp_path,
     )
 
