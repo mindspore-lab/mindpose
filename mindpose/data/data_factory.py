@@ -160,10 +160,7 @@ def _convert_names_to_transform(
             name, kwargs = name_with_arg, dict()
         else:
             name = list(name_with_arg.keys())[0]
-            # combine list of dict into single dict
-            # it will be nice if there is a better approach
             kwargs = list(name_with_arg.values())[0]
-            kwargs = {list(x.keys())[0]: list(x.values())[0] for x in kwargs}
 
         transform = entrypoint("transform", name)(
             is_train=is_train, config=config, **kwargs

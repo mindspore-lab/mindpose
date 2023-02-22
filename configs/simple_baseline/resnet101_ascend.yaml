@@ -35,18 +35,18 @@ normalize_std: [0.229, 0.224, 0.255]
 train_transforms:
   - topdown_box_to_center_scale
   - topdown_horizontal_random_flip:
-      - flip_prob: 0.5
+      flip_prob: 0.5
   - topdown_halfbody_transform:
-      - prob_half_body: 0.3
-      - scale_padding: 1.5
+      prob_half_body: 0.3
+      scale_padding: 1.5
   - topdown_randomscale_rotation:
-      - rot_factor: 40
-      - scale_factor: 0.5
-      - rot_prob: 0.6
+      rot_factor: 40
+      scale_factor: 0.5
+      rot_prob: 0.6
   - topdown_affine
   - topdown_generate_target:
-      - sigma: 2.
-      - use_different_joint_weights: False
+      sigma: 2.
+      use_different_joint_weights: False
 val_transforms:
   - topdown_box_to_center_scale
   - topdown_affine
