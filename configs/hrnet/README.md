@@ -6,7 +6,6 @@
 
 HRNet maintains high-resolution representations through the whole process. It starts from a high-resolution subnetwork as the first stage, gradually adds high-to-low resolution subnetworks one by one to form more stages, and connects the mutli-resolution subnetworks in parallel. Conducting repeated multi-scale fusions such that each of the high-to-low resolution representations receives information from other parallel representations over and over, leads to rich high-resolution representations. As a result, the predicted keypoint heatmap is potentially more accurate and spatially more precise.
 
-
 ## Results
 
 Our reproduced model performance on COCO2017-val is reported as follows.
@@ -23,7 +22,6 @@ Our reproduced model performance on COCO2017-val is reported as follows.
 #### Notes
 - Context: Training context denoted as {device}x{pieces}-{MS mode}, where mindspore mode can be G - graph mode or F - pynative mode with ms function. For example, D910x8-G is for training on 8 pieces of Ascend 910 NPU using graph mode. 
 - AP, AP<sup>50</sup>, AP<sup>75</sup>, AR and AR<sup>50</sup>: Accuracy reported on the validation set of COCO2017. 
-
 
 ## Quick Start
 
@@ -60,7 +58,6 @@ ${POSE_ROOT}
                 |-- ... 
 ```
 
-
 ### Training
 
 * Distributed Training
@@ -87,7 +84,7 @@ python tools/train.py --config configs/hrnet/hrnet_w32_ascend.yaml --cfg-options
 
 ### Validation
 
-To validate the accuracy of the trained model, you can use `tools/eval.py` and parse the checkpoint path with `--ckpt`. According to [<a href="#references">1</a>], multiple post-processing steps are used. The command to reproduce the final result is 
+To validate the accuracy of the trained model, you can use `tools/eval.py` and parse the checkpoint path with `--ckpt`. According to [<a href="#references">1</a>], multiple post-processing steps are used, e.g., horizontal flip TTA. You may need to add these arguments in the `--cfg-options`. The command to reproduce the final result is
 
 ```shell
 python tools/eval.py --config configs/hrnet/hrnet_w32_ascend.yaml --ckpt /path/to/ckpt --cfg-options val_use_gt_bbox=False eval_setting.hflip_tta=True eval_setting.shift_heatmap=True decoder_setting.shift_coordinate=True
@@ -95,4 +92,4 @@ python tools/eval.py --config configs/hrnet/hrnet_w32_ascend.yaml --ckpt /path/t
 
 ## References
 
-[1] K. Sun, B. Xiao, D. Liu, and J. Wang, “Deep High-Resolution Representation Learning for Human Pose Estimation,” presented at the Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, 2019, pp. 5693–5703. 
+[1] K. Sun, B. Xiao, D. Liu, and J. Wang, “Deep High-Resolution Representation Learning for Human Pose Estimation.” arXiv, Feb. 25, 2019. doi: 10.48550/arXiv.1902.09212.
