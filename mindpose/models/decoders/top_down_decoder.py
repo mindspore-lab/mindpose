@@ -2,6 +2,8 @@ from typing import Tuple
 
 import mindspore as ms
 import mindspore.ops as ops
+
+import numpy as np
 from mindspore import Tensor
 
 from ...register import register
@@ -18,6 +20,11 @@ class TopDownHeatMapDecoder(Decoder):
         shift_coordinate: Perform a +-0.25 pixel coordinate shift based on heatmap
             value. Default: True
         use_udp: Use Unbiased Data Processing (UDP) decoding. Default: False
+        udp_refine: Use Unbiased Data Processing (UDP) post-refinement. It cannot be
+            use with `shift_coordinate` in the same time. Default: False
+        kernel_size: Gaussian kernel size for UDP post-refinement, it should match
+            the heatmap gaussian simg in training. K=17 for sigma=3 and
+            K=11 for sigma=2. Default: 11
 
     Inputs:
         | heatmap: The ordinary output based on heatmap-based model,
@@ -38,14 +45,29 @@ class TopDownHeatMapDecoder(Decoder):
         self,
         pixel_std: float = 200.0,
         to_original: bool = True,
-        shift_coordinate: bool = True,
+        shift_coordinate: bool = False,
         use_udp: bool = False,
+        udp_refine: bool = False,
+        kernel_size: int = 11,
     ) -> None:
         super().__init__()
         self.pixel_std = pixel_std
         self.to_original = to_original
         self.shift_coordinate = shift_coordinate
         self.use_udp = use_udp
+        self.udp_refine = udp_refine
+        self.kernel_size = kernel_size
+
+        if self.udp_refine and self.shift_coordinate:
+            raise ValueError(
+                "`udp_refine` and `shift_coordinate` "
+                "cannot be `true` in the same time."
+            )
+
+        if self.udp_refine:
+            self.gaussian_kernel = self._create_gaussian_kernel(self.kernel_size)
+        else:
+            self.gaussian_kernel = None
 
     def construct(
         self, heatmap: Tensor, center: Tensor, scale: Tensor, score: Tensor
@@ -55,6 +77,8 @@ class TopDownHeatMapDecoder(Decoder):
         coords, maxvals, maxvals_mask = self._get_max_preds(heatmap)
         if self.shift_coordinate:
             coords = self._shift_coordinate(coords, heatmap, maxvals_mask)
+        elif self.udp_refine:
+            coords = self._udp_refine_coords(coords, heatmap)
         if self.to_original:
             coords = self._transform_preds(coords, center, scale, heatmap.shape[2:])
 
@@ -143,3 +167,52 @@ class TopDownHeatMapDecoder(Decoder):
         )
 
         return target_coords
+
+    def _udp_refine_coords(self, coords: Tensor, heatmap: Tensor) -> Tensor:
+        """Refine the coords by moduluated heatmap"""
+        N, K, H, W = heatmap.shape
+        kernel = ops.tile(self.gaussian_kernel, (heatmap.shape[1], 1, 1, 1))
+        heatmap = ops.conv2d(heatmap, kernel, group=heatmap.shape[1], pad_mode="same")
+        heatmap = ops.clip_by_value(heatmap, 0.001, 50)
+        heatmap = ops.log(heatmap)
+        heatmap = ops.pad(heatmap, ((0, 0), (0, 0), (1, 1), (1, 1)))
+        heatmap = heatmap.flatten()
+
+        index = coords[..., 0] + 1 + (coords[..., 1] + 1) * (W + 2)
+        index += (W + 2) * (H + 2) * ms.numpy.arange(0, N * K, 1).reshape(-1, K)
+        index = ops.cast(index, ms.int32).reshape(-1, 1)
+        i_ = heatmap[index]
+        ix1 = heatmap[index + 1]
+        iy1 = heatmap[index + W + 2]
+        ix1y1 = heatmap[index + W + 3]
+        ix1_y1_ = heatmap[index - W - 3]
+        ix1_ = heatmap[index - 1]
+        iy1_ = heatmap[index - 2 - W]
+
+        dx = 0.5 * (ix1 - ix1_)
+        dy = 0.5 * (iy1 - iy1_)
+        derivative = ops.concat([dx, dy], axis=1)
+        derivative = derivative.reshape(N, K, 2, 1)
+
+        dxx = ix1 - 2 * i_ + ix1_
+        dyy = iy1 - 2 * i_ + iy1_
+        dxy = 0.5 * (ix1y1 - ix1 - iy1 + i_ + i_ - ix1_ - iy1_ + ix1_y1_)
+        hessian = ops.concat([dxx, dxy, dxy, dyy], axis=1)
+        hessian = hessian.reshape(N, K, 2, 2)
+
+        hessian = ops.MatrixInverse()(hessian + ms.numpy.eye(2) * 1e-9)
+        coords -= ops.Einsum("ijmn,ijnk->ijmk")((hessian, derivative)).squeeze()
+        return coords
+
+    def _create_gaussian_kernel(self, kernel_size: int) -> Tensor:
+        sigma = 0.3 * ((kernel_size - 1) * 0.5 - 1) + 0.8
+        x_points = np.arange(-(kernel_size - 1) // 2, (kernel_size - 1) // 2 + 1, 1)
+        y_points = x_points[::-1]
+        xs, ys = np.meshgrid(x_points, y_points)
+        kernel = np.exp(-(xs**2 + ys**2) / (2 * sigma**2)) / (
+            2 * np.pi * sigma**2
+        )
+        kernel = kernel / kernel.sum()
+        kernel = kernel[None, None, ...]
+        kernel = ms.Tensor(kernel, dtype=ms.float32)
+        return kernel

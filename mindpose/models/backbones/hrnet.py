@@ -1,6 +1,6 @@
 """
 MindSpore implementation of `HRNet` backbone.
-Refer to Deep High-Resolution Representation Learning for Human Pose Estimation
+Refer to Deep High-Resolution Representation Learning for Human Pose Estimation.
 """
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
 

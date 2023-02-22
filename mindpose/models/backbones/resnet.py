@@ -1,5 +1,7 @@
-# TODO: resnet need to import from mindcv
-
+"""
+MindSpore implementation of `Resnet` backbone.
+Refer to Deep Residual Learning for Image Recognition.
+"""
 from typing import List, Optional, Type, Union
 
 import mindspore.nn as nn
