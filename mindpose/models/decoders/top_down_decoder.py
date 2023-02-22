@@ -20,7 +20,7 @@ class TopDownHeatMapDecoder(Decoder):
         shift_coordinate: Perform a +-0.25 pixel coordinate shift based on heatmap
             value. Default: True
         use_udp: Use Unbiased Data Processing (UDP) decoding. Default: False
-        udp_refine: Use Unbiased Data Processing (UDP) post-refinement. It cannot be
+        dark_udp_refine: Use post-refinement based on DARK / UDP. It cannot be
             use with `shift_coordinate` in the same time. Default: False
         kernel_size: Gaussian kernel size for UDP post-refinement, it should match
             the heatmap gaussian simg in training. K=17 for sigma=3 and
@@ -47,7 +47,7 @@ class TopDownHeatMapDecoder(Decoder):
         to_original: bool = True,
         shift_coordinate: bool = False,
         use_udp: bool = False,
-        udp_refine: bool = False,
+        dark_udp_refine: bool = False,
         kernel_size: int = 11,
     ) -> None:
         super().__init__()
@@ -55,16 +55,16 @@ class TopDownHeatMapDecoder(Decoder):
         self.to_original = to_original
         self.shift_coordinate = shift_coordinate
         self.use_udp = use_udp
-        self.udp_refine = udp_refine
+        self.dark_udp_refine = dark_udp_refine
         self.kernel_size = kernel_size
 
-        if self.udp_refine and self.shift_coordinate:
+        if self.dark_udp_refine and self.shift_coordinate:
             raise ValueError(
                 "`udp_refine` and `shift_coordinate` "
                 "cannot be `true` in the same time."
             )
 
-        if self.udp_refine:
+        if self.dark_udp_refine:
             self.gaussian_kernel = self._create_gaussian_kernel(self.kernel_size)
         else:
             self.gaussian_kernel = None
@@ -77,8 +77,8 @@ class TopDownHeatMapDecoder(Decoder):
         coords, maxvals, maxvals_mask = self._get_max_preds(heatmap)
         if self.shift_coordinate:
             coords = self._shift_coordinate(coords, heatmap, maxvals_mask)
-        elif self.udp_refine:
-            coords = self._udp_refine_coords(coords, heatmap)
+        elif self.dark_udp_refine:
+            coords = self._dark_udp_refine_coords(coords, heatmap)
         if self.to_original:
             coords = self._transform_preds(coords, center, scale, heatmap.shape[2:])
 
@@ -168,7 +168,7 @@ class TopDownHeatMapDecoder(Decoder):
 
         return target_coords
 
-    def _udp_refine_coords(self, coords: Tensor, heatmap: Tensor) -> Tensor:
+    def _dark_udp_refine_coords(self, coords: Tensor, heatmap: Tensor) -> Tensor:
         """Refine the coords by moduluated heatmap"""
         N, K, H, W = heatmap.shape
         kernel = ops.tile(self.gaussian_kernel, (heatmap.shape[1], 1, 1, 1))
@@ -206,12 +206,9 @@ class TopDownHeatMapDecoder(Decoder):
 
     def _create_gaussian_kernel(self, kernel_size: int) -> Tensor:
         sigma = 0.3 * ((kernel_size - 1) * 0.5 - 1) + 0.8
-        x_points = np.arange(-(kernel_size - 1) // 2, (kernel_size - 1) // 2 + 1, 1)
-        y_points = x_points[::-1]
-        xs, ys = np.meshgrid(x_points, y_points)
-        kernel = np.exp(-(xs**2 + ys**2) / (2 * sigma**2)) / (
-            2 * np.pi * sigma**2
-        )
+        xs = np.arange(-(kernel_size - 1) // 2, (kernel_size - 1) // 2 + 1, 1)
+        ys = xs[:, None]
+        kernel = np.exp(-(xs**2 + ys**2) / (2 * sigma**2))
         kernel = kernel / kernel.sum()
         kernel = kernel[None, None, ...]
         kernel = ms.Tensor(kernel, dtype=ms.float32)

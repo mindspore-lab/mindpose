@@ -194,10 +194,10 @@ def warp_affine_joints(joints: np.ndarray, mat: np.ndarray) -> np.ndarray:
         Result coordinate of joints.
 
     """
-    joints = np.array(joints)
-    shape = joints.shape
-    joints = joints.reshape(-1, 2)
     warped_joints = np.dot(
-        np.concatenate((joints, joints[:, 0:1] * 0 + 1), axis=1), mat.T
-    ).reshape(shape)
+        np.concatenate(
+            (joints, np.ones((joints.shape[0], 1), dtype=np.float32)), axis=1
+        ),
+        mat.T,
+    )
     return warped_joints

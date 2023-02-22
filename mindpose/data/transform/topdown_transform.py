@@ -125,7 +125,7 @@ class TopDownBoxToCenterScale(TopDownTransform):
 
         # perform a random center shift for training dataset
         if self.is_train and np.random.rand() < 0.3:
-            center += 0.4 * (np.random.rand(2) - 0.5) * [w, h]
+            center += np.random.uniform(-0.2, 0.2, size=2) * [w, h]
 
         if w > aspect_ratio * h:
             h = w * 1.0 / aspect_ratio
@@ -241,7 +241,7 @@ class TopDownAffine(TopDownTransform):
 
         if "keypoints" in state:
             transformed_state["keypoints"] = state["keypoints"]
-            transformed_state["keypoints"][:, :2] = warp_affine_joints(
+            transformed_state["keypoints"][:, 0:2] = warp_affine_joints(
                 state["keypoints"][:, 0:2], trans
             )
 
@@ -468,7 +468,7 @@ class TopDownHorizontalRandomFlip(TopDownTransform):
                 image.shape[1],
                 self._transform_cfg["flip_pairs"],
             )
-            center[0] = image.shape[1] - center[0]
+            center[0] = image.shape[1] - center[0] - 1
 
         transformed_state = dict(image=image, keypoints=keypoints, center=center)
         return transformed_state
