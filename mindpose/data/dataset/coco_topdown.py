@@ -19,12 +19,12 @@ class COCOTopDownDataset(TopDownDataset):
 
     Args:
         image_root: The path of the directory storing images
-        annotation_file: The path of the annotation file
-        is_train: Wether this dataset is used for training/testing
+        annotation_file: The path of the annotation file. Default: None
+        is_train: Wether this dataset is used for training/testing. Default: False
         use_gt_bbox_for_val: Use GT bbox instead of detection result
             during evaluation. Default: False
         detection_file: Path of the detection result. Defaul: None
-        config: Method-specific configuration.
+        config: Method-specific configuration. Default: None
 
     Item key in iterator:
         | image: Encoded data for image file
@@ -57,7 +57,7 @@ class COCOTopDownDataset(TopDownDataset):
         Keys:
             | image_file: Path of the image file
             | bbox: Bounding box coordinate (x, y, w, h)
-            | keypoints: Keypoints in (x, y, visibility)
+            | keypoints: Keypoints in [K, 3(x, y, visibility)]
             | bbox_score: Bounding box score, 1 for ground truth
             | bbox_id: Bounding box id for each single image
 

@@ -18,7 +18,7 @@ class TopDownHeatMapDecoder(Decoder):
         pixel_std: The scaling factor using in decoding. Default: 200.
         to_original: Convert the coordinate into the raw image. Default: True
         shift_coordinate: Perform a +-0.25 pixel coordinate shift based on heatmap
-            value. Default: True
+            value. Default: False
         use_udp: Use Unbiased Data Processing (UDP) decoding. Default: False
         dark_udp_refine: Use post-refinement based on DARK / UDP. It cannot be
             use with `shift_coordinate` in the same time. Default: False
