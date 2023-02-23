@@ -395,9 +395,9 @@ class TopDownGenerateTarget(TopDownTransform):
             if target_weight[joint_id] > 0.5:
                 mu_x_ac = keypoints[joint_id][0] / feat_stride[0]
                 mu_y_ac = keypoints[joint_id][1] / feat_stride[1]
-                x0 += mu_x_ac - mu_x
-                y0 += mu_y_ac - mu_y
-                g = np.exp(-((x - x0) ** 2 + (y - y0) ** 2) / (2 * self.sigma**2))
+                x0_p = x0 + mu_x_ac - mu_x
+                y0_p = y0 + mu_y_ac - mu_y
+                g = np.exp(-((x - x0_p) ** 2 + (y - y0_p) ** 2) / (2 * self.sigma**2))
 
                 # Usable gaussian range
                 g_x = max(0, -ul[0]), min(br[0], W) - ul[0]
@@ -468,7 +468,7 @@ class TopDownHorizontalRandomFlip(TopDownTransform):
                 image.shape[1],
                 self._transform_cfg["flip_pairs"],
             )
-            center[0] = image.shape[1] - center[0] - 1
+            center[0] = image.shape[1] - center[0]
 
         transformed_state = dict(image=image, keypoints=keypoints, center=center)
         return transformed_state

@@ -46,7 +46,6 @@ train_transforms:
   - topdown_affine
   - topdown_generate_target:
       sigma: 2.
-      use_different_joint_weights: False
 val_transforms:
   - topdown_box_to_center_scale
   - topdown_affine
