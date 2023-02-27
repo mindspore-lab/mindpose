@@ -116,6 +116,7 @@ Currently, MindPose supports the model families listed below. More models with p
 
 * SimpleBaseline - https://arxiv.org/abs/1804.06208
 * HRNet - https://arxiv.org/abs/1908.07919
+* UDP - https://arxiv.org/abs/1911.07524
 
 Please see [configs](./configs) for the details about model performance and pretrained weights.
 
