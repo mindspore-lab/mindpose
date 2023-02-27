@@ -200,7 +200,7 @@ class TopDownHeatMapDecoder(Decoder):
         hessian = ops.concat([dxx, dxy, dxy, dyy], axis=1)
         hessian = hessian.reshape(N, K, 2, 2)
 
-        hessian = ops.MatrixInverse()(hessian + ms.numpy.eye(2) * 1e-9)
+        hessian = ops.MatrixInverse()(hessian + ms.numpy.eye(2) * 1e-7)
         coords -= ops.Einsum("ijmn,ijnk->ijmk")((hessian, derivative)).squeeze()
         return coords
 
