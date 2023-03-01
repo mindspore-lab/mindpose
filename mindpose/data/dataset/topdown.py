@@ -8,18 +8,19 @@ class TopDownDataset:
     """Create an iterator for TopDown dataset,
     return the tuple with (image, center, scale, keypoints, rotation,
     target, target_weight) for training; return the tuple with (image,
-    center, scale, rotation, image_file, box, box_id, box_score) for evaluation
+    center, scale, rotation, image_file, boxes, bbox_ids, bbox_score) for evaluation.
 
     Args:
         image_root: The path of the directory storing images
         annotation_file: The path of the annotation file. Default: None
         is_train: Wether this dataset is used for training/testing. Default: False
+        num_joints: Number of joints in the dataset. Default: 17
         use_gt_bbox_for_val: Use GT bbox instead of detection result
             during evaluation. Default: False
         detection_file: Path of the detection result. Default: None
         config: Method-specific configuration. Default: None
 
-    Item key in iterator:
+    Item in iterator:
         | image: Encoded data for image file
         | center: A placeholder for later pipline using
         | scale: A placeholder of later pipline using
@@ -42,6 +43,7 @@ class TopDownDataset:
         image_root: str,
         annotation_file: Optional[str] = None,
         is_train: bool = False,
+        num_joints: int = 17,
         use_gt_bbox_for_val: bool = False,
         detection_file: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
@@ -49,6 +51,7 @@ class TopDownDataset:
         self.image_root = image_root
         self.annotation_file = annotation_file
         self.is_train = is_train
+        self.num_joints = num_joints
         self.use_gt_bbox_for_val = use_gt_bbox_for_val
         self.detection_file = detection_file
         self.config = config if config else dict()

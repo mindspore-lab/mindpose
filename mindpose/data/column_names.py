@@ -1,4 +1,6 @@
 # Columns used for dataset and pipeline
+
+# TOPDOWN
 _TOPDOWN_TRAIN_COLUMN_NAMES = [
     "image",
     "center",
@@ -33,14 +35,37 @@ _TOPDOWN_VAL_FINAL_COLUMN_NAMES = [
     "bbox_scores",
 ]
 
+# BOTTOMUP
+
+_BOTTOMUP_TRAIN_COLUMN_NAMES = [
+    "image",
+    "boxes",
+    "keypoints",
+    "mask",
+    "target",
+    "keypoint_coordinate",
+]
+
+_BOTTOMUP_TRAIN_FINAL_COLUMN_NAMES = ["image", "mask", "target", "keypoint_coordinate"]
+
+_BOTTOMUP_VAL_COLUMN_NAMES = ["image", "image_file"]
+
+_BOTTOMUP_VAL_FINAL_COLUMN_NAMES = ["image", "image_file"]
 
 COLUMN_MAP = dict(
     coco_topdown=dict(train=_TOPDOWN_TRAIN_COLUMN_NAMES, val=_TOPDOWN_VAL_COLUMN_NAMES),
     topdown=dict(train=_TOPDOWN_TRAIN_COLUMN_NAMES, val=_TOPDOWN_VAL_COLUMN_NAMES),
+    coco_bottomup=dict(
+        train=_BOTTOMUP_TRAIN_COLUMN_NAMES, val=_BOTTOMUP_VAL_COLUMN_NAMES
+    ),
+    bottomup=dict(train=_BOTTOMUP_TRAIN_COLUMN_NAMES, val=_BOTTOMUP_VAL_COLUMN_NAMES),
 )
 
 FINAL_COLUMN_MAP = dict(
     topdown=dict(
         train=_TOPDOWN_TRAIN_FINAL_COLUMN_NAMES, val=_TOPDOWN_VAL_FINAL_COLUMN_NAMES
-    )
+    ),
+    bottomup=dict(
+        train=_BOTTOMUP_TRAIN_FINAL_COLUMN_NAMES, val=_BOTTOMUP_VAL_FINAL_COLUMN_NAMES
+    ),
 )

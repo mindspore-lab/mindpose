@@ -18,12 +18,11 @@ def create_dataset(
     annotation_file: str,
     dataset_format: str = "coco_topdown",
     is_train: bool = True,
-    use_gt_bbox_for_val: bool = False,
-    detection_file: Optional[str] = None,
     device_num: Optional[int] = None,
     rank_id: Optional[int] = None,
     num_workers: int = 1,
     config: Optional[Dict[str, Any]] = None,
+    **kwargs: Any
 ) -> GeneratorDataset:
     """Create dataset for training or evaluation.
 
@@ -33,24 +32,22 @@ def create_dataset(
         dataset_format: The dataset format. Different format yield
             different final output. Default: `coco_topdown`
         is_train: Wether this dataset is used for training/testing: Default: True
-        use_gt_bbox_for_val: Use GT bbox instead of detection result
-            during evaluation. Default: False
-        detection_file: Path of the detection result. Default: None
         device_num: Number of devices (e.g. GPU). Default: None
         rank_id: Current process's rank id. Default: None
         num_workers: Number of workers in reading data. Default: 1
         config: Dataset-specific configuration
+        use_gt_bbox_for_val: Use GT bbox instead of detection result
+            during evaluation. Default: False
+        detection_file: Path of the detection result. Default: None
 
     Returns:
         Dataset for training or evaluation
     """
+    # remove dummy arguments
+    kwargs = {k: v for k, v in kwargs.items() if v is not None}
+
     dataset = entrypoint("dataset", dataset_format)(
-        image_root,
-        annotation_file,
-        is_train=is_train,
-        use_gt_bbox_for_val=use_gt_bbox_for_val,
-        detection_file=detection_file,
-        config=config,
+        image_root, annotation_file, is_train=is_train, config=config, **kwargs
     )
 
     # select the column names for different task

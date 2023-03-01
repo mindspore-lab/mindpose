@@ -61,14 +61,14 @@ class SimpleBaselineHead(Head):
             has_bias=True,
         )
 
-    def _get_deconv_padding(self, deconv_kernel):
+    def _get_deconv_padding(self, deconv_kernel: int) -> int:
         if deconv_kernel == 4:
             padding = 1
         elif deconv_kernel == 2:
             padding = 0
         return padding
 
-    def make_deconv_layer(self):
+    def make_deconv_layer(self) -> nn.SequentialCell:
         layers = []
         in_channels = self.in_channels
         for i in range(self.num_deconv_layers):

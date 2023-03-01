@@ -43,3 +43,28 @@ class JointsMSELoss(Loss):
         else:
             loss = self.criterion(pred, target)
         return loss
+
+
+@register("loss", extra_name="joint_mse_with_mask")
+class JointsMSELossWithMask(Loss):
+    """Joint Mean square error loss with mask
+    It is the MSE loss of heatmaps with mask on different position.
+
+    Inputs:
+        | pred: Predictions, in shape [N, C, H, W]
+        | target: Ground truth, in shape [N, C, H, W]
+        | mask: Ground truth Mask, in shape [N, H, W]
+
+    Outputs:
+        | loss: Loss value
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.criterion = nn.MSELoss(reduction="none")
+
+    def construct(self, pred: Tensor, target: Tensor, mask: Tensor) -> Tensor:
+        loss = self.criterion(pred, target)
+        loss = mask[:, None, :, :] * loss
+        loss = ops.mean(loss)
+        return loss
