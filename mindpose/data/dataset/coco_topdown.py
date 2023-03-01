@@ -15,18 +15,19 @@ class COCOTopDownDataset(TopDownDataset):
     """Create an iterator for TopDown dataset based COCO annotation format.
     return the tuple with (image, center, scale, keypoints, rotation,
     target, target_weight) for training; return the tuple with (image,
-    center, scale, rotation, image_file, box, box_id, box_score) for evaluation
+    center, scale, rotation, image_file, boxes, bbox_ids, bbox_score) for evaluation.
 
     Args:
         image_root: The path of the directory storing images
         annotation_file: The path of the annotation file. Default: None
         is_train: Wether this dataset is used for training/testing. Default: False
+        num_joints: Number of joints in the dataset. Default: 17
         use_gt_bbox_for_val: Use GT bbox instead of detection result
             during evaluation. Default: False
         detection_file: Path of the detection result. Defaul: None
         config: Method-specific configuration. Default: None
 
-    Item key in iterator:
+    Item in iterator:
         | image: Encoded data for image file
         | center: A placeholder for later pipline using
         | scale: A placeholder of later pipline using
@@ -35,7 +36,7 @@ class COCOTopDownDataset(TopDownDataset):
         | target: A placeholder for later pipline using
         | target_weight: A placeholder of later pipline using
         | image_file: Path of the image file
-        | bbox: Bounding box coordinate (x, y, w, h)
+        | boxes: Bounding box coordinate (x, y, w, h)
         | bbox_id: Bounding box id for each single image
         | bbox_score: Bounding box score, 1 for ground truth
     """

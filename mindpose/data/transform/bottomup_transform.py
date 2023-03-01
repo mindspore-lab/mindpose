@@ -1,0 +1,515 @@
+from typing import Any, Dict, List, Optional, Tuple
+
+import cv2
+import numpy as np
+
+from ...register import register
+
+from ..column_names import COLUMN_MAP
+from .transform import Transform
+from .utils import fliplr_joints, get_affine_transform, pad_to_same, warp_affine_joints
+
+__all__ = [
+    "BottomUpTransform",
+    "BottomUpHorizontalRandomFlip",
+    "BottomUpRandomAffine",
+    "BottomUpGenerateTarget",
+    "BottomUpRescale",
+    "BottomUpPad",
+]
+
+
+class BottomUpTransform(Transform):
+    """Transform the input data into the output data based on bottom-up approach.
+
+    Args:
+        is_train: Whether the transformation is for training/testing. Default: True
+        config: Method-specific configuration.  Default: None
+
+    Inputs:
+        data: Data tuples need to be transformed
+
+    Outputs:
+        result: Transformed data tuples
+
+    Note:
+        This is an abstract class, child class must implement `transform` method.
+    """
+
+    def setup_required_field(self) -> List[str]:
+        """Get the required columns names used for this transformation.
+        The columns names will be later used with Minspore Dataset `map` func.
+
+        Returns:
+            The column names
+        """
+        if self.is_train:
+            return COLUMN_MAP["bottomup"]["train"]
+        return COLUMN_MAP["bottomup"]["val"]
+
+    def load_transform_cfg(self) -> Dict[str, Any]:
+        """Loading the transform config, where the returned the config must
+        be a dictionary which stores the configuration of this transformation,
+        such as the transformed image size, etc.
+
+        Returns:
+            Transform configuration
+        """
+        transform_cfg = dict()
+
+        transform_cfg["image_size"] = np.array(self.config["image_size"])
+        transform_cfg["max_image_size"] = np.array(self.config["max_image_size"])
+        transform_cfg["heatmap_sizes"] = np.array(self.config["heatmap_sizes"])
+        assert len(transform_cfg["image_size"]) == 2
+        for x in transform_cfg["heatmap_sizes"]:
+            assert len(x) == 2
+        transform_cfg["flip_pairs"] = np.array(self.config["flip_pairs"])
+
+        transform_cfg["pixel_std"] = float(self.config["pixel_std"])
+        transform_cfg["tag_per_joint"] = self.config["tag_per_joint"]
+
+        return transform_cfg
+
+
+@register("transform", extra_name="bottomup_horizontal_random_flip")
+class BottomUpHorizontalRandomFlip(BottomUpTransform):
+    """Perform randomly horizontal flip in bottomup approach.
+
+    Args:
+        is_train: Whether the transformation is for training/testing. Default: True
+        config: Method-specific configuration. Default: None
+        flip_prob: Probability of performing a horizontal flip. Default: 0.5
+    """
+
+    def __init__(
+        self,
+        is_train: bool = True,
+        config: Optional[Dict[str, Any]] = None,
+        flip_prob: float = 0.5,
+    ) -> None:
+        super().__init__(is_train, config)
+        self.flip_prob = flip_prob
+
+    def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform the state into the transformed state. state is a dictionay
+        storing the informaton of the image and labels, the returned states is
+        the updated dictionary storing the updated image and labels.
+
+        Args:
+            state: Stored information of image and labels
+
+        Returns:
+            Updated inforamtion of image and labels based on the transformation
+
+        Note:
+            | Required `keys` for transform: image, mask, keypoints
+            | Returned `keys` after transform: image, mask, keypoints
+        """
+        image = state["image"]
+        keypoints = state["keypoints"]
+        mask = state["mask"]
+
+        heatmap_sizes = self._transform_cfg["heatmap_sizes"]
+
+        if np.random.rand() <= self.flip_prob:
+            image = image[:, ::-1, :]
+            for i, heatmap_size in enumerate(heatmap_sizes):
+                width, height = heatmap_size
+                patch_mask = mask[i, :height, :width]
+                mask[i, :height, :width] = patch_mask[:, ::-1]
+
+                for j in range(len(keypoints[i])):
+                    keypoints[i, j] = fliplr_joints(
+                        keypoints[i, j],
+                        width,
+                        self._transform_cfg["flip_pairs"],
+                    )
+
+        transformed_state = dict(image=image, keypoints=keypoints, mask=mask)
+        return transformed_state
+
+
+@register("transform", extra_name="bottomup_rescale")
+class BottomUpRescale(BottomUpTransform):
+    """Rescaling the image to the `max_image_size` without change the aspect ratio.
+
+    Args:
+        is_train: Whether the transformation is for training/testing. Default: True
+        config: Method-specific configuration. Default: None
+    """
+
+    def _get_scale(
+        self, image_size: Tuple[int, int], max_size: Tuple[int, int]
+    ) -> Tuple[int, int]:
+        w, h = image_size
+        max_w, max_h = max_size
+
+        if w / h > max_w / max_h:
+            target_w = max_w
+            target_h = round(h * max_w / w)
+        else:
+            target_h = max_h
+            target_w = round(w * max_h / h)
+
+        return target_w, target_h
+
+    def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform the state into the transformed state. state is a dictionay
+        storing the informaton of the image and labels, the returned states is
+        the updated dictionary storing the updated image and labels.
+
+        Args:
+            state: Stored information of image and labels
+
+        Returns:
+            Updated inforamtion of image and labels based on the transformation
+
+        Note:
+            | Required `keys` for transform: image
+            | Returned `keys` after transform: image
+        """
+        image = state["image"]
+        height, width = image.shape[:2]
+
+        img_scale = [width, height]
+        target_scale = self._get_scale(img_scale, self._transform_cfg["max_image_size"])
+
+        image = cv2.resize(
+            image,
+            (int(target_scale[0]), int(target_scale[1])),
+            interpolation=cv2.INTER_LINEAR,
+        )
+
+        transformed_state = dict()
+        transformed_state["image"] = image
+        return transformed_state
+
+
+@register("transform", extra_name="bottomup_random_affine")
+class BottomUpRandomAffine(BottomUpTransform):
+    """Random affine transform the image. The mask and keypoints will be rescaled
+    to the heatmap sizes after the transformation.
+
+    Args:
+        is_train: Whether the transformation is for training/testing. Default: True
+        config: Method-specific configuration. Default: None
+        rot_factor: Randomly rotated in [-rotation_factor, rotation_factor].
+            Default: 30.
+        scale_factor: Randomly Randomly scaled in [scale_factor[0], scale_factor[1]].
+            Default: (0.75, 1.5)
+        scale_type: Scaling with the long / short length of the image. Default: short
+        trans_factor: Translation factor. Default: 40.
+    """
+
+    def __init__(
+        self,
+        is_train: bool = True,
+        config: Optional[Dict[str, Any]] = None,
+        rot_factor: float = 30.0,
+        scale_factor: Tuple[float, float] = (0.75, 1.5),
+        scale_type: str = "short",
+        trans_factor: float = 40.0,
+    ):
+
+        super().__init__(is_train=is_train, config=config)
+        self.max_rotation = rot_factor
+        self.min_scale = scale_factor[0]
+        self.max_scale = scale_factor[1]
+        self.scale_type = scale_type
+        self.trans_factor = trans_factor
+
+    def _get_scale(
+        self, image_size: Tuple[int, int], resized_size: Tuple[int, int]
+    ) -> np.ndarray:
+        w, h = image_size
+        w_resized, h_resized = resized_size
+        if w / w_resized < h / h_resized:
+            if self.scale_type == "long":
+                w_pad = h / h_resized * w_resized
+                h_pad = h
+            elif self.scale_type == "short":
+                w_pad = w
+                h_pad = w / w_resized * h_resized
+            else:
+                raise ValueError(f"Unknown scale type: {self.scale_type}")
+        else:
+            if self.scale_type == "long":
+                w_pad = w
+                h_pad = w / w_resized * h_resized
+            elif self.scale_type == "short":
+                w_pad = h / h_resized * w_resized
+                h_pad = h
+            else:
+                raise ValueError(f"Unknown scale type: {self.scale_type}")
+
+        scale = np.array([w_pad, h_pad], dtype=np.float32)
+
+        return scale
+
+    def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform the state into the transformed state. state is a dictionay
+        storing the informaton of the image and labels, the returned states is
+        the updated dictionary storing the updated image and labels.
+
+        Args:
+            state: Stored information of image and labels
+
+        Returns:
+            Updated inforamtion of image and labels based on the transformation
+
+        Note:
+            | Required `keys` for transform: image, mask, keypoints
+            | Returned `keys` after transform: image, mask, keypoints
+        """
+        image = state["image"]
+        mask = state["mask"]
+        keypoints = state["keypoints"]
+
+        image_size = self._transform_cfg["image_size"]
+        heatmap_sizes = self._transform_cfg["heatmap_sizes"]
+        num_levels = len(heatmap_sizes)
+
+        # expand the mask and keypoints for num_levels
+        mask = [mask.copy() for _ in range(num_levels)]
+        keypoints = [keypoints.copy() for _ in range(num_levels)]
+
+        height, width = image.shape[:2]
+
+        center = np.array((width / 2, height / 2))
+        img_scale = np.array([width, height], dtype=np.float32)
+        aug_scale = np.random.uniform(self.min_scale, self.max_scale)
+
+        img_scale *= aug_scale
+        aug_rot = np.random.uniform(-self.max_rotation, self.max_rotation)
+
+        pixel_std = self._transform_cfg["pixel_std"]
+
+        if self.trans_factor > 0:
+            dx = np.random.randint(
+                -self.trans_factor * img_scale[0] / pixel_std,
+                self.trans_factor * img_scale[0] / pixel_std,
+            )
+            dy = np.random.randint(
+                -self.trans_factor * img_scale[1] / pixel_std,
+                self.trans_factor * img_scale[1] / pixel_std,
+            )
+
+            center[0] += dx
+            center[1] += dy
+
+        transformed_state = dict()
+
+        for i, heatmap_size in enumerate(heatmap_sizes):
+            # calculate the mat for heatmap
+            scale = self._get_scale(img_scale, heatmap_size)
+            mat = get_affine_transform(
+                center=center,
+                scale=scale / pixel_std,
+                rot=aug_rot,
+                output_size=heatmap_size,
+                pixel_std=pixel_std,
+            )
+
+            # warp masks and keypoints
+            mask[i] = cv2.warpAffine(
+                mask[i],
+                mat,
+                (int(heatmap_size[0]), int(heatmap_size[1])),
+                flags=cv2.INTER_NEAREST,
+            )
+
+            keypoints[i][:, :, 0:2] = warp_affine_joints(keypoints[i][:, :, 0:2], mat)
+
+        # calculate the mat for image
+        scale = self._get_scale(img_scale, image_size)
+        mat = get_affine_transform(
+            center=center,
+            scale=scale / pixel_std,
+            rot=aug_rot,
+            output_size=image_size,
+            pixel_std=pixel_std,
+        )
+
+        # warp image
+        image = cv2.warpAffine(
+            image,
+            mat,
+            (int(image_size[0]), int(image_size[1])),
+            flags=cv2.INTER_LINEAR,
+        )
+
+        mask = pad_to_same(mask)
+
+        transformed_state["image"] = image
+        transformed_state["mask"] = mask
+        transformed_state["keypoints"] = keypoints
+
+        return transformed_state
+
+
+@register("transform", extra_name="bottomup_generate_target")
+class BottomUpGenerateTarget(BottomUpTransform):
+    """Generate heatmap with the keypoint coordinatess with multiple scales.
+
+    Args:
+        is_train: Whether the transformation is for training/testing. Default: True
+        config: Method-specific configuration. Default: None
+        sigma: The sigmal size of gausian distribution. Default: 2.0
+        max_num: Maximum number of instances within the image. Default: 30
+
+    Inputs:
+        | data: Data tuples need to be transformed
+
+    Outputs:
+        | result: Transformed data tuples
+    """
+
+    def __init__(
+        self,
+        is_train: bool = True,
+        config: Optional[Dict[str, Any]] = None,
+        sigma: float = 2.0,
+        max_num: int = 30,
+    ) -> None:
+        super().__init__(is_train=is_train, config=config)
+        self.sigma = sigma
+        self.max_num = max_num
+
+    def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform the state into the transformed state. state is a dictionay
+        storing the informaton of the image and labels, the returned states is
+        the updated dictionary storing the updated image and labels.
+
+        Args:
+            state: Stored information of image and labels
+
+        Returns:
+            Updated inforamtion of image and labels based on the transformation
+
+        Note:
+            | Required `keys` for transform: keypoints
+            | Returned `keys` after transform: target, keypoint_coordinate
+        """
+        return self._encoding(state)
+
+    def _encoding(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        target_list, coordinate_list = list(), list()
+        for keypoint, heatmap_size in zip(
+            state["keypoints"], self._transform_cfg["heatmap_sizes"]
+        ):
+            target, coordinate = self._generate_heatmap_and_encoding(
+                keypoint, heatmap_size
+            )
+            target_list.append(target)
+            coordinate_list.append(coordinate)
+
+        # pad the heatmap to the same sahpe
+        target_list = pad_to_same(target_list)
+
+        coordinate = np.stack(coordinate_list)
+        target = np.stack(target_list)
+
+        transformed_state = dict(target=target, keypoint_coordinate=coordinate)
+        return transformed_state
+
+    def _generate_heatmap_and_encoding(
+        self, keypoints: np.ndarray, heatmap_size: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Generate heatmap and coordinates for keypoints [M, K, 3]"""
+        W, H = heatmap_size
+        M, K, _ = keypoints.shape
+
+        if M > self.max_num:
+            raise ValueError(
+                f"Number of keypoints in one image `{M}` "
+                "exeeds the maximum num: `{self.max_num}`"
+            )
+
+        target = np.zeros((K, H, W), dtype=np.float32)
+        visible_kpts = np.zeros((self.max_num, K, 2), dtype=np.float32)
+
+        # 3-sigma rule
+        tmp_size = self.sigma * 3
+
+        # gaussian kernel
+        size = 2 * tmp_size + 1
+        x = np.arange(0, size, 1, np.float32)
+        y = x[:, None]
+        x0, y0 = size // 2, size // 2
+        # The gaussian is not normalized,
+        # we want the center value to equal 1
+        g = np.exp(-((x - x0) ** 2 + (y - y0) ** 2) / (2 * self.sigma**2))
+
+        for m, single_keypoints in enumerate(keypoints):
+            tot = 0
+            for idx, pt in enumerate(single_keypoints):
+                if pt[2] > 0:
+                    mu_x, mu_y = round(pt[0]), round(pt[1])
+
+                    # Check that any part of the gaussian is in-bounds
+                    ul = [int(mu_x - tmp_size), int(mu_y - tmp_size)]
+                    br = [int(mu_x + tmp_size + 1), int(mu_y + tmp_size + 1)]
+                    if ul[0] >= W or ul[1] >= H or br[0] < 0 or br[1] < 0:
+                        continue
+
+                    # Usable gaussian range
+                    g_x = max(0, -ul[0]), min(br[0], W) - ul[0]
+                    g_y = max(0, -ul[1]), min(br[1], H) - ul[1]
+                    # Image range
+                    img_x = max(0, ul[0]), min(br[0], W)
+                    img_y = max(0, ul[1]), min(br[1], H)
+
+                    heatmap_patch = target[
+                        idx, img_y[0] : img_y[1], img_x[0] : img_x[1]
+                    ]
+
+                    target[idx, img_y[0] : img_y[1], img_x[0] : img_x[1]] = np.maximum(
+                        heatmap_patch,
+                        g[g_y[0] : g_y[1], g_x[0] : g_x[1]],
+                    )
+
+                    if self._transform_cfg["tag_per_joint"]:
+                        visible_kpts[m, tot, :] = (idx * W * H + mu_y * W + mu_x, 1)
+                    else:
+                        visible_kpts[m, tot, :] = (mu_y * W + mu_x, 1)
+                    tot += 1
+        return target, visible_kpts
+
+
+@register("transform", extra_name="bottomup_pad")
+class BottomUpPad(BottomUpTransform):
+    """Padding the image to the `max_image_size`.
+
+    Args:
+        is_train: Whether the transformation is for training/testing. Default: True
+        config: Method-specific configuration. Default: None
+    """
+
+    def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform the state into the transformed state. state is a dictionay
+        storing the informaton of the image and labels, the returned states is
+        the updated dictionary storing the updated image and labels.
+
+        Args:
+            state: Stored information of image and labels
+
+        Returns:
+            Updated inforamtion of image and labels based on the transformation
+
+        Note:
+            | Required `keys` for transform: image
+            | Returned `keys` after transform: image
+        """
+        image = state["image"]
+        height, width = image.shape[:2]
+        target_width, target_height = self._transform_cfg["max_image_size"]
+        assert target_width >= width
+        assert target_height >= height
+
+        height_pad = target_height - height
+        width_pad = target_width - width
+        image = np.pad(image, ((0, height_pad), (0, width_pad), (0, 0)))
+
+        transformed_state = dict()
+        transformed_state["image"] = image
+        return transformed_state

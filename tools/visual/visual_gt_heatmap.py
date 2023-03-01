@@ -31,6 +31,7 @@ def visual_gt_heatmap(args: Namespace) -> None:
         args.train_label,
         dataset_format=args.dataset_format,
         is_train=True,
+        num_joints=args.num_joints,
         num_workers=args.num_parallel_workers,
         config=args.dataset_setting,
     )

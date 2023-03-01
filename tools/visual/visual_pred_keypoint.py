@@ -29,6 +29,7 @@ def visual_pred_keypoint(args: Namespace) -> None:
         args.val_label,
         dataset_format=args.dataset_format,
         is_train=False,
+        num_joints=args.num_joints,
         use_gt_bbox_for_val=args.val_use_gt_bbox,
         detection_file=args.val_detection_result,
         num_workers=args.num_parallel_workers,

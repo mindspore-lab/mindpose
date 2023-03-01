@@ -419,7 +419,7 @@ class TopDownGenerateTarget(TopDownTransform):
 
 @register("transform", extra_name="topdown_horizontal_random_flip")
 class TopDownHorizontalRandomFlip(TopDownTransform):
-    """Perform randomly horizontal flip.
+    """Perform randomly horizontal flip in topdown approach.
 
     Args:
         is_train: Whether the transformation is for training/testing. Default: True
@@ -572,7 +572,7 @@ class TopDownHalfBodyTransform(TopDownTransform):
 
         Note:
             | Required `keys` for transform: keypoints
-            | Returned `keys` after transform: image, center, scale
+            | Returned `keys` after transform: center, scale
         """
         keypoints = state["keypoints"]
         num_joints = keypoints.shape[0]

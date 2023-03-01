@@ -36,7 +36,7 @@ def test_top_down_decoder_with_shift_coordinate():
 def test_top_down_decoder_with_udp_refine():
     ms.set_context(mode=ms.GRAPH_MODE)
 
-    decoder = TopDownHeatMapDecoder(use_udp=True, udp_refine=True)
+    decoder = TopDownHeatMapDecoder(use_udp=True, dark_udp_refine=True)
     heatmap = Tensor(np.random.random((8, 17, 48, 64)), dtype=ms.float32)
     center = Tensor(np.random.uniform(low=0, high=400, size=(8, 2)), dtype=ms.float32)
     scale = Tensor(np.random.uniform(low=0, high=3, size=(8, 2)), dtype=ms.float32)

@@ -196,8 +196,23 @@ def warp_affine_joints(joints: np.ndarray, mat: np.ndarray) -> np.ndarray:
     """
     warped_joints = np.dot(
         np.concatenate(
-            (joints, np.ones((joints.shape[0], 1), dtype=np.float32)), axis=1
+            (joints, np.ones((*joints.shape[:-1], 1), dtype=np.float32)), axis=-1
         ),
         mat.T,
     )
     return warped_joints
+
+
+def pad_to_same(arrays: List[np.ndarray]) -> List[np.ndarray]:
+    """Padding the 2D arrays to the maximum shape of them"""
+    padded_array = list()
+
+    shapes = np.array([x.shape for x in arrays])
+    max_shape = shapes.max(axis=0, keepdims=True)
+    shape_offset = max_shape - shapes
+    for i, x in enumerate(arrays):
+        offset = [(0, x) for x in shape_offset[i]]
+        padded_x = np.pad(x, offset)
+        padded_array.append(padded_x)
+
+    return padded_array
