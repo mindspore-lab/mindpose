@@ -3,7 +3,7 @@ import os
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
-from xtcocotools.coco import COCO
+from pycocotools.coco import COCO
 
 from ...register import register
 

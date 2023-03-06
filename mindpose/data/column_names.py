@@ -41,12 +41,12 @@ _BOTTOMUP_TRAIN_COLUMN_NAMES = [
     "image",
     "boxes",
     "keypoints",
-    "mask",
     "target",
-    "keypoint_coordinate",
+    "mask",
+    "tag_mask",
 ]
 
-_BOTTOMUP_TRAIN_FINAL_COLUMN_NAMES = ["image", "mask", "target", "keypoint_coordinate"]
+_BOTTOMUP_TRAIN_FINAL_COLUMN_NAMES = ["image", "target", "mask", "tag_mask"]
 
 _BOTTOMUP_VAL_COLUMN_NAMES = ["image", "image_file"]
 

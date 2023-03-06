@@ -47,8 +47,8 @@ class JointsMSELoss(Loss):
 
 @register("loss", extra_name="joint_mse_with_mask")
 class JointsMSELossWithMask(Loss):
-    """Joint Mean square error loss with mask
-    It is the MSE loss of heatmaps with mask on different position.
+    """Joint Mean square error loss with mask.
+    Mask-out position will not contribute to the loss.
 
     Inputs:
         | pred: Predictions, in shape [N, C, H, W]

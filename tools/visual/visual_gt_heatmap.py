@@ -58,10 +58,15 @@ def visual_gt_heatmap(args: Namespace) -> None:
 
         img = data["image"][0][..., ::-1]  # RGB to BGR
         heatmap = data["target"][0] * 255
+        # in case of muli-resolution heatmap, choose the largest one
+        if len(heatmap.shape) == 4:
+            heatmap = heatmap[-1]
         heatmap = np.sum(heatmap, axis=0)
         heatmap = np.clip(heatmap, 0, 255).astype(np.uint8)
         heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
-        heatmap = cv2.resize(heatmap, dsize=(img.shape[1], img.shape[0]))
+        heatmap = cv2.resize(
+            heatmap, dsize=(img.shape[1], img.shape[0]), interpolation=cv2.INTER_NEAREST
+        )
 
         img = img * 0.7 + heatmap * 0.3
 
@@ -71,6 +76,33 @@ def visual_gt_heatmap(args: Namespace) -> None:
         fpath = os.path.join(args.outdir, f"{i}_gt.jpg")
         _logger.info(f"Saving to {fpath}")
         cv2.imwrite(fpath, img)
+
+        if "mask" in data:
+            mask = data["mask"][0] * 255
+            if len(mask.shape) == 3:
+                mask = mask[-1]
+            mask = cv2.resize(
+                mask,
+                dsize=(img.shape[1], img.shape[0]),
+                interpolation=cv2.INTER_NEAREST,
+            )
+            fpath = os.path.join(args.outdir, f"{i}_mask.jpg")
+            _logger.info(f"Saving to {fpath}")
+            cv2.imwrite(fpath, mask)
+
+        if "tag_mask" in data:
+            tag_mask = data["tag_mask"][0] * 255
+            if len(tag_mask.shape) == 5:
+                tag_mask = tag_mask[-1]
+            tag_mask = tag_mask.sum(axis=(0, 1))
+            tag_mask = cv2.resize(
+                tag_mask,
+                dsize=(img.shape[1], img.shape[0]),
+                interpolation=cv2.INTER_NEAREST,
+            )
+            fpath = os.path.join(args.outdir, f"{i}_tag_mask.jpg")
+            _logger.info(f"Saving to {fpath}")
+            cv2.imwrite(fpath, tag_mask)
 
 
 def main():
