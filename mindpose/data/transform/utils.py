@@ -1,35 +1,42 @@
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
 
 
 def fliplr_joints(
-    keypoints: np.ndarray, img_width: int, flip_pairs: List[Tuple[int, int]]
+    keypoints: np.ndarray,
+    img_width: int,
+    flip_pairs: Optional[List[Tuple[int, int]]] = None,
+    flip_index: Optional[np.ndarray] = None,
 ) -> np.ndarray:
-    """Flip human joints horizontally.
+    """Flip human joints horizontally. Either use flip_pairs or flip_index
 
     Args:
-        keypoints: Keyponts pair, in shape [N, (x, y)]
+        keypoints: Keyponts pair, in shape [..., K, 2(x, y)]
         img_width: Image width.
         flip_pairs: Pairs of keypoints which are mirrored
             (for example, left ear -- right ear).
+        flip_index: Flattened flip index for fast flip
 
     Returns:
         Flipped human joints.
     """
     assert img_width > 0
+    assert flip_pairs is not None or flip_index is not None
 
-    keypoints_flipped = keypoints.copy()
-
-    # Swap left-right parts
-    for left, right in flip_pairs:
-        keypoints_flipped[left, :] = keypoints[right, :]
-        keypoints_flipped[right, :] = keypoints[left, :]
+    if flip_pairs is not None:
+        keypoints_flipped = keypoints.copy()
+        # Swap left-right parts
+        for left, right in flip_pairs:
+            keypoints_flipped[..., left, :] = keypoints[..., right, :]
+            keypoints_flipped[..., right, :] = keypoints[..., left, :]
+    elif flip_index is not None:
+        keypoints_flipped = keypoints[..., flip_index, :]
 
     # Flip horizontally
     # keypoints is usually stored as integer from 0 to image_size - 1
-    keypoints_flipped[:, 0] = img_width - 1 - keypoints_flipped[:, 0]
+    keypoints_flipped[..., 0] = img_width - 1 - keypoints_flipped[..., 0]
 
     return keypoints_flipped
 

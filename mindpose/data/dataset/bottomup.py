@@ -5,7 +5,7 @@ import numpy as np
 
 class BottomUpDataset:
     """Create an iterator for ButtomUp dataset,
-    return the tuple with (image, boxes, keypoints, mask, target, keypoint_coordinate)
+    return the tuple with (image, boxes, keypoints, target, mask, tag_mask)
     for training; return the tuple with (image, image_file) for evaluation
 
     Args:
@@ -20,7 +20,7 @@ class BottomUpDataset:
         | keypoints: Keypoints in (x, y, visibility)
         | mask: Mask of the image showing the valid annotations
         | target: A placeholder for later pipline using
-        | keypoints_coordinate: A placeholder of later pipline using
+        | tag_mask: A placeholder of later pipline using
         | image_file: Path of the image file
         | boxes: Bounding box coordinate (x0, y0), (x1, y1)
 
@@ -61,7 +61,7 @@ class BottomUpDataset:
             | image_file: Path of the image file
             | keypoints: Keypoints in (x, y, visibility)
             | bbox: Bounding box coordinate (x, y, w, h)
-            | mask: The mask of crowed or zero keypoints instances
+            | mask_info: The mask info of crowed or zero keypoints instances
 
         Returns:
             A list of records of groundtruth or predictions
@@ -75,12 +75,17 @@ class BottomUpDataset:
         record = self._dataset[idx]
         image = np.fromfile(record["image_file"], dtype=np.uint8)
         if self.is_train:
+            # decode mask
+            mask_info = record["mask_info"]
+            mask = np.unpackbits(
+                mask_info["encoded_mask"], count=mask_info["count"]
+            ).reshape(mask_info["shape"])
             return (
                 image,
                 np.asarray(record["boxes"], dtype=np.float32),
                 np.asarray(record["keypoints"], dtype=np.float32),
-                np.asarray(record["mask"], dtype=np.float32),
                 np.float32(0),  # placeholder for target
-                np.float32(0),  # placeholder for keypoint_coordinate
+                np.asarray(mask, dtype=np.uint8),
+                np.uint8(0),  # placeholder for tag_mask
             )
         return (image, record["image_file"])

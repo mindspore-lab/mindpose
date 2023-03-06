@@ -25,6 +25,9 @@ __all__ = [
     "TopDownRandomScaleRotation",
 ]
 
+# set thread limitation
+cv2.setNumThreads(2)
+
 
 class TopDownTransform(Transform):
     """Transform the input data into the output data based on top-down approach.
@@ -68,7 +71,17 @@ class TopDownTransform(Transform):
         assert len(transform_cfg["image_size"]) == 2
         assert len(transform_cfg["heatmap_size"]) == 2
 
-        transform_cfg["flip_pairs"] = np.array(self.config["flip_pairs"])
+        # processing flip_pairs
+        flip_pairs = np.array(self.config["flip_pairs"])
+        if len(flip_pairs.shape) == 2:
+            flip_index = flip_pairs[:, ::-1].flatten()
+            flip_index = np.insert(flip_index, 0, 0)
+        else:
+            flip_index = flip_pairs
+
+        transform_cfg["flip_pairs"] = flip_pairs
+        transform_cfg["flip_index"] = flip_index
+
         transform_cfg["upper_body_ids"] = np.array(self.config["upper_body_ids"])
         transform_cfg["pixel_std"] = float(self.config["pixel_std"])
         transform_cfg["scale_padding"] = float(self.config["scale_padding"])
@@ -466,7 +479,7 @@ class TopDownHorizontalRandomFlip(TopDownTransform):
             keypoints = fliplr_joints(
                 keypoints,
                 image.shape[1],
-                self._transform_cfg["flip_pairs"],
+                flip_index=self._transform_cfg["flip_index"],
             )
             center[0] = image.shape[1] - center[0]
 

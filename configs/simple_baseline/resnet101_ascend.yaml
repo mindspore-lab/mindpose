@@ -2,7 +2,7 @@
 mode: 0
 distribute: True
 enable_graph_kernel: False
-num_parallel_workers: 8
+num_parallel_workers: 4
 val_while_train: True
 val_interval: 10
 save_best: True

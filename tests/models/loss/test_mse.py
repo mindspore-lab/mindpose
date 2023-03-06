@@ -32,6 +32,6 @@ def test_joint_mse_with_mask():
     criterion = JointsMSELossWithMask()
     pred = Tensor(np.random.random((4, 12, 32, 32)), dtype=ms.float32)
     target = Tensor(np.random.random((4, 12, 32, 32)), dtype=ms.float32)
-    mask = Tensor(np.random.choice(2, size=(4, 32, 32)), dtype=ms.float32)
+    mask = Tensor(np.random.randint(2, size=(4, 32, 32)), dtype=ms.uint8)
     loss = criterion(pred, target, mask)
     assert loss.size == 1

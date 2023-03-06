@@ -2,9 +2,9 @@ import os
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
+import pycocotools.mask
 
-import xtcocotools.mask
-from xtcocotools.coco import COCO
+from pycocotools.coco import COCO
 
 from ...register import register
 
@@ -14,7 +14,7 @@ from .bottomup import BottomUpDataset
 @register("dataset", extra_name="coco_bottomup")
 class COCOBottomUpDataset(BottomUpDataset):
     """Create an iterator for ButtomUp dataset,
-    return the tuple with (image, boxes, keypoints, mask, target, keypoint_coordinate)
+    return the tuple with (image, boxes, keypoints, mask, target, tag_mask)
     for training; return the tuple with (image, image_file) for evaluation
 
     Args:
@@ -51,7 +51,7 @@ class COCOBottomUpDataset(BottomUpDataset):
             | image_file: Path of the image file
             | keypoints: Keypoints in (x, y, visibility)
             | boxes: Bounding box coordinate (x0, y0), (x1, y1)
-            | mask: The mask of crowed or zero keypoints instances
+            | mask_info: The mask info of crowed or zero keypoints instances
 
         Returns:
             A list of records of groundtruth or predictions
@@ -76,7 +76,7 @@ class COCOBottomUpDataset(BottomUpDataset):
         ann_ids = self.coco.getAnnIds(imgIds=img_id)
         annos = self.coco.loadAnns(ann_ids)
 
-        mask = self._get_mask(annos, img_id)
+        mask_info = self._get_encoded_mask(annos, img_id)
         annos = [
             obj for obj in annos if obj["iscrowd"] == 0 or obj["num_keypoints"] > 0
         ]
@@ -89,7 +89,7 @@ class COCOBottomUpDataset(BottomUpDataset):
             "image_file": image_file,
             "keypoints": keypoints,
             "boxes": boxes,
-            "mask": mask,
+            "mask_info": mask_info,
         }
         return rec
 
@@ -126,24 +126,33 @@ class COCOBottomUpDataset(BottomUpDataset):
         boxes = boxes.reshape((-1, 2, 2))
         return boxes
 
-    def _get_mask(self, annos: List[Dict[str, Any]], idx: int) -> np.ndarray:
-        """Get ignore masks to mask out losses."""
+    def _get_encoded_mask(
+        self, annos: List[Dict[str, Any]], idx: int
+    ) -> Dict[str, Any]:
         img_info = self.coco.loadImgs(idx)[0]
 
-        m = np.zeros((img_info["height"], img_info["width"]), dtype=np.float32)
+        height = img_info["height"]
+        width = img_info["width"]
+
+        m = np.zeros((height, width), dtype=np.float32)
 
         for obj in annos:
             if "segmentation" in obj:
                 if obj["iscrowd"]:
-                    rle = xtcocotools.mask.frPyObjects(
-                        obj["segmentation"], img_info["height"], img_info["width"]
+                    rle = pycocotools.mask.frPyObjects(
+                        obj["segmentation"], height, width
                     )
-                    m += xtcocotools.mask.decode(rle)
+                    m += pycocotools.mask.decode(rle)
                 elif obj["num_keypoints"] == 0:
-                    rles = xtcocotools.mask.frPyObjects(
-                        obj["segmentation"], img_info["height"], img_info["width"]
+                    rles = pycocotools.mask.frPyObjects(
+                        obj["segmentation"], height, width
                     )
                     for rle in rles:
-                        m += xtcocotools.mask.decode(rle)
+                        m += pycocotools.mask.decode(rle)
 
-        return m < 0.5
+        m = m < 0.5
+
+        encoded_m = np.packbits(m)
+
+        mask_info = {"encoded_mask": encoded_m, "count": m.size, "shape": m.shape}
+        return mask_info

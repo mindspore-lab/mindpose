@@ -141,7 +141,9 @@ def create_pipeline(
     dataset = dataset.project(final_column_names)
 
     # batch
-    dataset = dataset.batch(batch_size, drop_remainder=is_train)
+    dataset = dataset.batch(
+        batch_size, drop_remainder=is_train, num_parallel_workers=num_workers
+    )
     return dataset
 
 

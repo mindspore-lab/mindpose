@@ -5,8 +5,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
-from xtcocotools.coco import COCO
-from xtcocotools.cocoeval import COCOeval
+from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
 
 from mindpose.utils.nms import oks_nms, soft_oks_nms
 from ...register import register
@@ -208,9 +208,7 @@ class TopDownEvaluator(Evaluator):
     ) -> List[Tuple[str, List[np.ndarray]]]:
         """Keypoint evaluation using COCOAPI."""
         coco_det = self.coco.loadRes(res_file)
-        coco_eval = COCOeval(
-            self.coco, coco_det, "keypoints", np.asarray(self._evaluation_cfg["sigmas"])
-        )
+        coco_eval = COCOeval(self.coco, coco_det, "keypoints")
         coco_eval.params.useSegm = None
         coco_eval.evaluate()
         coco_eval.accumulate()
