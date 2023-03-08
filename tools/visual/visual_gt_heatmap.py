@@ -65,7 +65,7 @@ def visual_gt_heatmap(args: Namespace) -> None:
         heatmap = np.clip(heatmap, 0, 255).astype(np.uint8)
         heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
         heatmap = cv2.resize(
-            heatmap, dsize=(img.shape[1], img.shape[0]), interpolation=cv2.INTER_NEAREST
+            heatmap, dsize=(img.shape[1], img.shape[0]), interpolation=cv2.INTER_LINEAR
         )
 
         img = img * 0.7 + heatmap * 0.3

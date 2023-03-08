@@ -37,4 +37,8 @@ def load_pretrained(
         local_ckpt_path = os.path.join(download_dir, os.path.basename(ckpt_url))
 
     _logger.info(f"Loading the checkpoint from `{local_ckpt_path}`")
-    ms.load_checkpoint(local_ckpt_path, net=net, strict_load=False)
+
+    try:
+        ms.load_checkpoint(local_ckpt_path, net=net, strict_load=False)
+    except ValueError as e:
+        _logger.warning(f"Cannot load checkpoint from {local_ckpt_path}. ({str(e)})")

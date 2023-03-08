@@ -54,7 +54,7 @@ def train(args: Namespace) -> None:
         device_num = None
         rank_id = None
 
-    # create dataset
+    # create training dataset
     train_dataset = create_dataset(
         args.train_root,
         args.train_label,
@@ -67,19 +67,6 @@ def train(args: Namespace) -> None:
         config=args.dataset_setting,
     )
 
-    val_dataset = create_dataset(
-        args.val_root,
-        args.val_label,
-        dataset_format=args.dataset_format,
-        is_train=False,
-        num_joints=args.num_joints,
-        use_gt_bbox_for_val=args.val_use_gt_bbox,
-        detection_file=args.val_detection_result,
-        num_workers=args.num_parallel_workers,
-        config=args.dataset_setting,
-    )
-
-    # create pipeline
     train_dataset = create_pipeline(
         train_dataset,
         transforms=args.train_transforms,
@@ -92,17 +79,33 @@ def train(args: Namespace) -> None:
         config=args.dataset_setting,
     )
 
-    val_dataset = create_pipeline(
-        val_dataset,
-        transforms=args.val_transforms,
-        method=args.pipeline_method,
-        batch_size=args.batch_size,
-        is_train=False,
-        normalize_mean=args.normalize_mean,
-        normalize_std=args.normalize_std,
-        num_workers=args.num_parallel_workers,
-        config=args.dataset_setting,
-    )
+    # create validation dataset
+    if args.val_while_train:
+        val_dataset = create_dataset(
+            args.val_root,
+            args.val_label,
+            dataset_format=args.dataset_format,
+            is_train=False,
+            num_joints=args.num_joints,
+            use_gt_bbox_for_val=args.val_use_gt_bbox,
+            detection_file=args.val_detection_result,
+            num_workers=args.num_parallel_workers,
+            config=args.dataset_setting,
+        )
+
+        val_dataset = create_pipeline(
+            val_dataset,
+            transforms=args.val_transforms,
+            method=args.pipeline_method,
+            batch_size=args.batch_size,
+            is_train=False,
+            normalize_mean=args.normalize_mean,
+            normalize_std=args.normalize_std,
+            num_workers=args.num_parallel_workers,
+            config=args.dataset_setting,
+        )
+    else:
+        val_dataset = None
 
     # create network
     net = create_network(
@@ -122,8 +125,11 @@ def train(args: Namespace) -> None:
     _logger.info(f"Model param: {num_params}")
 
     # create evaluation network
-    decoder = create_decoder(args.decoder_name, **args.decoder_setting)
-    val_net = create_eval_network(net, decoder)
+    if args.val_while_train:
+        decoder = create_decoder(args.decoder_name, **args.decoder_setting)
+        val_net = create_eval_network(net, decoder)
+    else:
+        decoder, val_net = None, None
 
     # create loss
     loss = create_loss(args.loss, **args.loss_setting)
@@ -160,8 +166,13 @@ def train(args: Namespace) -> None:
         ms.load_param_into_net(net_with_loss, param_dict)
         ms.load_param_into_net(optimizer, param_dict)
 
+    # set up mix-precision training
+    if args.amp_level != "O0":
+        loss_scale_manager = DynamicLossScaleManager()
+    else:
+        loss_scale_manager = None
+
     # create model
-    loss_scale_manager = DynamicLossScaleManager()
     model = Model(
         network=net_with_loss,
         optimizer=optimizer,
@@ -170,23 +181,29 @@ def train(args: Namespace) -> None:
     )
 
     # create inferencer and evaluator
-    inferencer = create_inferencer(
-        net=val_net,
-        name=args.inference_method,
-        config=args.eval_setting,
-        dataset_config=args.dataset_setting,
-        decoder=decoder,
-    )
+    if args.val_while_train:
+        inferencer = create_inferencer(
+            net=val_net,
+            name=args.inference_method,
+            config=args.eval_setting,
+            dataset_config=args.dataset_setting,
+            decoder=decoder,
+        )
+    else:
+        inferencer = None
 
-    keypoint_result_tmp_path = os.path.join(args.outdir, "result_keypoint.json")
-    evaluator = create_evaluator(
-        annotation_file=args.val_label,
-        name=args.eval_method,
-        metric=args.eval_metric,
-        config=args.eval_setting,
-        dataset_config=args.dataset_setting,
-        result_path=keypoint_result_tmp_path,
-    )
+    if args.val_while_train:
+        keypoint_result_tmp_path = os.path.join(args.outdir, "result_keypoint.json")
+        evaluator = create_evaluator(
+            annotation_file=args.val_label,
+            name=args.eval_method,
+            metric=args.eval_metric,
+            config=args.eval_setting,
+            dataset_config=args.dataset_setting,
+            result_path=keypoint_result_tmp_path,
+        )
+    else:
+        evaluator = None
 
     # create callbacks for loss monitor and perform evaluation
     model_outdir = os.path.join(args.outdir, "saved_model")

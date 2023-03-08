@@ -6,7 +6,8 @@ import numpy as np
 class BottomUpDataset:
     """Create an iterator for ButtomUp dataset,
     return the tuple with (image, boxes, keypoints, target, mask, tag_mask)
-    for training; return the tuple with (image, image_file) for evaluation
+    for training; return the tuple with (image, mask, image_file, image_shape)
+    for evaluation.
 
     Args:
         image_root: The path of the directory storing images
@@ -88,4 +89,9 @@ class BottomUpDataset:
                 np.asarray(mask, dtype=np.uint8),
                 np.uint8(0),  # placeholder for tag_mask
             )
-        return (image, record["image_file"])
+        return (
+            image,
+            np.uint8(0),  # placeholder for mask
+            record["image_file"],
+            np.asarray(record["mask_info"]["shape"], dtype=np.int32),
+        )

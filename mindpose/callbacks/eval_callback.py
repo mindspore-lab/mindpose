@@ -21,9 +21,9 @@ class EvalCallback(Callback):
     visualization. The best and last checkpoint can be saved after each training epoch.
 
     Args:
-        inferencer: Inferencer for running inference on the dataset
-        evaluator: Evaluator for running evaluation
-        dataset: The dataset used for running inference
+        inferencer: Inferencer for running inference on the dataset. Default: None
+        evaluator: Evaluator for running evaluation. Default: None
+        dataset: The dataset used for running inference. Default: None
         interval: The interval of running evaluation, in epoch. Default: 1
         max_epoch: Total number of epochs for training. Default: 1
         save_best: Saving the best model based on the result of the target metric
@@ -40,9 +40,9 @@ class EvalCallback(Callback):
 
     def __init__(
         self,
-        inferencer: Inferencer,
-        evaluator: Evaluator,
-        dataset: Dataset,
+        inferencer: Optional[Inferencer] = None,
+        evaluator: Optional[Evaluator] = None,
+        dataset: Optional[Dataset] = None,
         interval: int = 1,
         max_epoch: int = 1,
         save_best: bool = False,
@@ -72,11 +72,20 @@ class EvalCallback(Callback):
         self.rank_id = rank_id if rank_id is not None else 0
         self.device_num = device_num if device_num is not None else 1
 
-        if self.target_metric_name not in evaluator.metrics:
-            raise ValueError(
-                f"target metric `{self.target_metric_name}` "
-                f"is not listed in evaluator metrics `{evaluator.metrics}`"
-            )
+        if self.inferencer is None or self.evaluator is None or self.dataset is None:
+            _logger.info("Evaluation during training is disabled.")
+            self._eval_during_train = False
+            if self.save_best:
+                _logger.warning(
+                    "Best model cannot be saved since `val_while_train` is diabled."
+                )
+        else:
+            self._eval_during_train = True
+            if self.target_metric_name not in evaluator.metrics:
+                raise ValueError(
+                    f"target metric `{self.target_metric_name}` "
+                    f"is not listed in evaluator metrics `{evaluator.metrics}`"
+                )
 
         if self.device_num > 1:
             self.all_reduce = Allreduce()
@@ -104,9 +113,6 @@ class EvalCallback(Callback):
         self.loss_meter.update(loss)
 
     def on_train_epoch_end(self, run_context: RunContext) -> None:
-        # make sure the inferencer is not for training
-        self.inferencer.net.set_train(False)
-
         cb_param = run_context.original_args()
         cur_epoch = cb_param.cur_epoch_num
 
@@ -133,7 +139,9 @@ class EvalCallback(Callback):
 
         output = dict()
         if cur_epoch % self.interval == 0 or cur_epoch == self.max_epoch:
-            if self.rank_id == 0:
+            if self.rank_id == 0 and self._eval_during_train:
+                # make sure the inferencer is not for training
+                self.inferencer.net.set_train(False)
                 result = self.inferencer(self.dataset)
                 output = self.evaluator(result)
                 _logger.info(output)

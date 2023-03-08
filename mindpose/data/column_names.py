@@ -48,9 +48,9 @@ _BOTTOMUP_TRAIN_COLUMN_NAMES = [
 
 _BOTTOMUP_TRAIN_FINAL_COLUMN_NAMES = ["image", "target", "mask", "tag_mask"]
 
-_BOTTOMUP_VAL_COLUMN_NAMES = ["image", "image_file"]
+_BOTTOMUP_VAL_COLUMN_NAMES = ["image", "mask", "image_file", "image_shape"]
 
-_BOTTOMUP_VAL_FINAL_COLUMN_NAMES = ["image", "image_file"]
+_BOTTOMUP_VAL_FINAL_COLUMN_NAMES = ["image", "mask", "image_file", "image_shape"]
 
 COLUMN_MAP = dict(
     coco_topdown=dict(train=_TOPDOWN_TRAIN_COLUMN_NAMES, val=_TOPDOWN_VAL_COLUMN_NAMES),
