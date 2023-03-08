@@ -80,7 +80,7 @@ class HigherHRNetHead(Head):
         num_joints: Number of joints in the final output. Default: 17
         with_ae_loss: Output the associated embedding for each resolution.
             Default: [True, False]
-        tag_per_joint: Wether each of the joint has its own coordinate encoding.
+        tag_per_joint: Whether each of the joint has its own coordinate encoding.
             Default: True
         final_conv_kernel_size: The kernel size in the final convolution layer.
             Default: 1

@@ -125,7 +125,7 @@ class BottomUpHorizontalRandomFlip(BottomUpTransform):
         heatmap_sizes = self._transform_cfg["heatmap_sizes"]
 
         if np.random.rand() <= self.flip_prob:
-            image = image[:, ::-1, :]
+            image = cv2.flip(image, 1)
             for i, heatmap_size in enumerate(heatmap_sizes):
                 width, height = heatmap_size
                 patch_mask = mask[i, :height, :width]
@@ -531,7 +531,7 @@ class BottomUpPad(BottomUpTransform):
 
         Note:
             | Required `keys` for transform: image
-            | Returned `keys` after transform: image
+            | Returned `keys` after transform: image, mask
         """
         image = state["image"]
         height, width = image.shape[:2]
@@ -543,6 +543,10 @@ class BottomUpPad(BottomUpTransform):
         width_pad = target_width - width
         image = np.pad(image, ((0, height_pad), (0, width_pad), (0, 0)))
 
+        mask = np.zeros((target_height, target_width), dtype=np.uint8)
+        mask[:height, :width] = 1
+
         transformed_state = dict()
         transformed_state["image"] = image
+        transformed_state["mask"] = mask
         return transformed_state

@@ -15,7 +15,8 @@ from .bottomup import BottomUpDataset
 class COCOBottomUpDataset(BottomUpDataset):
     """Create an iterator for ButtomUp dataset,
     return the tuple with (image, boxes, keypoints, mask, target, tag_mask)
-    for training; return the tuple with (image, image_file) for evaluation
+    for training; return the tuple with (image, mask, image_file, image_shape)
+    for evaluation.
 
     Args:
         image_root: The path of the directory storing images

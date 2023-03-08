@@ -475,7 +475,7 @@ class TopDownHorizontalRandomFlip(TopDownTransform):
         center = state["center"]
 
         if np.random.rand() <= self.flip_prob:
-            image = image[:, ::-1, :]
+            image = cv2.flip(image, 1)
             keypoints = fliplr_joints(
                 keypoints,
                 image.shape[1],
