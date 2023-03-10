@@ -23,7 +23,6 @@ class AEMultiLoss(Loss):
             Default: [True, False]
         with_ae_loss: Whether each level involves calculating AE loss.
             Default: [True, False]
-        sigma: Sigma vvalue in AE loss. Default: 1.0
 
     Inputs:
         | pred: List of prediction result at each resolution level. In shape [N, aK,
@@ -48,11 +47,10 @@ class AEMultiLoss(Loss):
         ae_loss_factor: List[float] = [0.001, 0.001],
         with_mse_loss: List[bool] = [True, True],
         with_ae_loss: List[bool] = [True, False],
-        sigma: float = 1.0,
     ) -> None:
         super().__init__()
         self.mse_criterion = JointsMSELossWithMask()
-        self.ae_criterion = AELoss(sigma=sigma, reduce=True)
+        self.ae_criterion = AELoss(reduce=True)
 
         self.num_joints = num_joints
         self.num_stages = num_stages
