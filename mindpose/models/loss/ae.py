@@ -15,7 +15,6 @@ class AELoss(Loss):
     <https://arxiv.org/abs/1611.05424>`_.
 
     Args:
-        sigma: Sigma value in push loss. Default: 1.0
         reduce: Whether reduce the loss into the single value. Default: False
 
     Inputs:
@@ -29,16 +28,15 @@ class AELoss(Loss):
             push loss
     """
 
-    def __init__(self, sigma: float = 1.0, reduce: bool = False) -> None:
+    def __init__(self, reduce: bool = False) -> None:
         super().__init__()
-        self.sigma = sigma
         self.reduce = reduce
         self.eps = 0.001
 
     def construct(
         self, pred: Tensor, target: Tensor
     ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
-        N, M, K, _, _ = target.shape
+        N, M, _, _, _ = target.shape
 
         target_bool = ops.cast(target, ms.bool_)
         target = ops.cast(target, pred.dtype)
@@ -51,17 +49,18 @@ class AELoss(Loss):
 
         # calculate the pull loss
         diff = (h_n[..., None, None, None] - pred) * target
-        pull_loss = (diff**2).sum(axis=(1, 2, 3, 4)) / (
-            target.sum(axis=(1, 2, 3, 4)) + self.eps
+        pull_loss = (diff**2).sum(axis=(2, 3, 4)) / (
+            target.sum(axis=(2, 3, 4)) + self.eps
         )
+        mask = ops.cast(target.sum(axis=(2, 3, 4)) > 0, diff.dtype)
+        pull_loss = pull_loss.sum(axis=1) / (mask.sum(axis=1) + self.eps)
 
         # calculate the push loss
         A = ops.broadcast_to(h_n[..., None], (N, M, M))
         B = ops.transpose(A, (0, 2, 1))
         diff = A - B
-        push_loss = ops.exp(-(diff**2) / (self.sigma**2 * 2))
+        push_loss = ops.exp(-(diff**2))
         # invalid h_n will not contribute to the loss
-        mask = ops.cast(target.sum(axis=(2, 3, 4)) > 0, diff.dtype)
         diff_mask = ops.broadcast_to(mask[..., None], (N, M, M))
         diff_mask = diff_mask * ops.transpose(diff_mask, (0, 2, 1))
         push_loss *= diff_mask
@@ -71,12 +70,9 @@ class AELoss(Loss):
         push_loss -= m
         push_loss = 0.5 * push_loss / (m * (m - 1) + self.eps)
 
-        # multiply the pull loss by K such that two loss has roughly same scale
-        pull_loss *= K
-
         if self.reduce:
             push_loss = push_loss.mean()
             pull_loss = pull_loss.mean()
             return push_loss + pull_loss
 
-        return pull_loss, push_loss
+        return push_loss, pull_loss
