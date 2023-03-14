@@ -15,8 +15,8 @@ from .bottomup import BottomUpDataset
 class COCOBottomUpDataset(BottomUpDataset):
     """Create an iterator for ButtomUp dataset,
     return the tuple with (image, boxes, keypoints, mask, target, tag_mask)
-    for training; return the tuple with (image, mask, image_file, image_shape)
-    for evaluation.
+    for training; return the tuple with (image, mask, center, scale, image_file,
+    image_shape) for evaluation.
 
     Args:
         image_root: The path of the directory storing images
@@ -70,6 +70,11 @@ class COCOBottomUpDataset(BottomUpDataset):
 
         gt_db = []
         for img_id in self.img_ids:
+            if self.is_train:
+                # skip the images without annotations
+                ann_ids = self.coco.getAnnIds(imgIds=img_id)
+                if len(ann_ids) == 0:
+                    continue
             gt_db.append(self._load_coco_keypoint_annotations_per_img(img_id))
         return gt_db
 

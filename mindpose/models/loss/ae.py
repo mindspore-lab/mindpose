@@ -53,7 +53,8 @@ class AELoss(Loss):
             target.sum(axis=(2, 3, 4)) + self.eps
         )
         mask = ops.cast(target.sum(axis=(2, 3, 4)) > 0, diff.dtype)
-        pull_loss = pull_loss.sum(axis=1) / (mask.sum(axis=1) + self.eps)
+        m = mask.sum(axis=1)
+        pull_loss = pull_loss.sum(axis=1) / (m + self.eps)
 
         # calculate the push loss
         A = ops.broadcast_to(h_n[..., None], (N, M, M))
@@ -66,7 +67,6 @@ class AELoss(Loss):
         push_loss *= diff_mask
         push_loss = push_loss.sum(axis=(1, 2))
         # remove the diagonal value
-        m = mask.sum(axis=1)
         push_loss -= m
         push_loss = 0.5 * push_loss / (m * (m - 1) + self.eps)
 
