@@ -148,7 +148,7 @@ class BottomUpRescale(BottomUpTransform):
         config: Method-specific configuration. Default: None
     """
 
-    def _get_scale(
+    def _get_new_size(
         self, image_size: Tuple[int, int], max_size: Tuple[int, int]
     ) -> Tuple[int, int]:
         w, h = image_size
@@ -176,22 +176,30 @@ class BottomUpRescale(BottomUpTransform):
 
         Note:
             | Required `keys` for transform: image
-            | Returned `keys` after transform: image
+            | Returned `keys` after transform: image, center, scale
         """
         image = state["image"]
         height, width = image.shape[:2]
 
-        img_scale = [width, height]
-        target_scale = self._get_scale(img_scale, self._transform_cfg["max_image_size"])
+        img_size = [width, height]
+        target_size = self._get_new_size(
+            img_size, self._transform_cfg["max_image_size"]
+        )
 
         image = cv2.resize(
             image,
-            (int(target_scale[0]), int(target_scale[1])),
+            (int(target_size[0]), int(target_size[1])),
             interpolation=cv2.INTER_LINEAR,
         )
 
+        pixel_std = self._transform_cfg["pixel_std"]
+        center = np.array([round(width / 2), round(height / 2)])
+        scale = np.array([width / pixel_std, height / pixel_std])
+
         transformed_state = dict()
         transformed_state["image"] = image
+        transformed_state["center"] = center
+        transformed_state["scale"] = scale
         return transformed_state
 
 
