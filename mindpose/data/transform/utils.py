@@ -211,7 +211,14 @@ def warp_affine_joints(joints: np.ndarray, mat: np.ndarray) -> np.ndarray:
 
 
 def pad_to_same(arrays: List[np.ndarray]) -> List[np.ndarray]:
-    """Padding the 2D arrays to the maximum shape of them"""
+    """Padding the 2D arrays to the maximum shape of them.
+
+    Args:
+        arrays: List of arrays with differnt shape
+
+    Returns:
+        List of padded arrays where the shape are the same.
+    """
     padded_array = list()
 
     shapes = np.array([x.shape for x in arrays])
@@ -223,3 +230,45 @@ def pad_to_same(arrays: List[np.ndarray]) -> List[np.ndarray]:
         padded_array.append(padded_x)
 
     return padded_array
+
+
+def transform_keypoints(
+    coords: List[np.ndarray],
+    center: np.ndarray,
+    scale: np.ndarray,
+    heatmap_shape: np.ndarray,
+    pixel_std: float = 200.0,
+):
+    """Transform the keypoints coordinate from heatmap shape to the original resolution
+
+    Args:
+        coords: List of the coordinates in a batch N of image, in shape [K, M, >2].
+            The first 2 dimension corresponds to the x, y location of the keypoint.
+            If the image has no detection, then the array size is 0
+        center: Centers of the image batch. In shape [N, 2]
+        scale: Scales of the image batch. In shape [N, 2]
+        heatmap_shape: The heatmap shape of the image batch. In shape [N, 2]
+        pixel_std: The scaling factor. Default: 200.
+
+    Returns:
+        The transformed coordiante.
+    """
+    scale = scale * pixel_std
+
+    scale_x = scale[:, 0] / heatmap_shape[:, 0]
+    scale_y = scale[:, 1] / heatmap_shape[:, 1]
+
+    target_coords = list()
+    for i, coord in enumerate(coords):
+        if coord.size == 0:
+            target_coords.append(coord)
+            continue
+        target_coord = coord.copy()
+        target_coord[:, :, 0] = (
+            coord[:, :, 0] * scale_x[i] + center[i, 0] - scale[i, 0] * 0.5
+        )
+        target_coord[:, :, 1] = (
+            coord[:, :, 1] * scale_y[i] + center[i, 1] - scale[i, 1] * 0.5
+        )
+        target_coords.append(target_coord)
+    return target_coords

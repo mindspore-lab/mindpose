@@ -10,9 +10,9 @@ from ...register import register
 from .decoder import Decoder
 
 
-@register("decoder", extra_name="bottomup_heatmap")
-class BottomUpHeatMapDecoder(Decoder):
-    """Decode the heatmaps into coordinates
+@register("decoder", extra_name="bottomup_heatmap_ae")
+class BottomUpHeatMapAEDecoder(Decoder):
+    """Decode the heatmaps with associativa embedding into coordinates
 
     Args:
         num_joints: Number of joints. Default: 17
@@ -88,7 +88,7 @@ class BottomUpHeatMapDecoder(Decoder):
         # resize the tagging_heatmap to the same resolution as heatmap
         _, _, H, W = heatmap.shape
         tagging_heatmap = ops.ResizeBilinear((H, W))(tagging_heatmap)
-        mask = ops.ResizeNearestNeighbor((H, W))(ops.cast(mask, ms.int32))
+        mask = ops.ResizeNearestNeighbor((H, W))(ops.cast(mask, tagging_heatmap.dtype))
 
         # mask out nonvalid heatmap region
         mask = ops.cast(mask, ms.bool_)

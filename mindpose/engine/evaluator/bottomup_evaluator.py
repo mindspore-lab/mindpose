@@ -9,9 +9,9 @@ from ...register import register
 from .evaluator import Evaluator
 
 
-@register("evaluator", extra_name="topdown")
-class TopDownEvaluator(Evaluator):
-    """Create an evaluator based on Topdown method. It performs the model
+@register("evaluator", extra_name="bottomup")
+class BottomUpEvaluator(Evaluator):
+    """Create an evaluator based on BottomUp method. It performs the model
     evaluation based on the inference result (a list of records), and
     outputs with the metirc result.
 
@@ -56,7 +56,6 @@ class TopDownEvaluator(Evaluator):
             Evaluation configurations
         """
         evaluation_cfg = dict()
-        evaluation_cfg["vis_thr"] = self.config["vis_thr"]
         evaluation_cfg["oks_thr"] = self.config["oks_thr"]
         evaluation_cfg["use_nms"] = self.config["use_nms"]
         evaluation_cfg["soft_nms"] = self.config["soft_nms"]
@@ -77,39 +76,25 @@ class TopDownEvaluator(Evaluator):
         for record in inference_result:
             image_path = record["image_path"]
             image_id = self.name2id[os.path.basename(image_path)]
-            kpts[image_id].append(
-                {
-                    "keypoints": record["pred"],
-                    "center": record["box"][0:2],
-                    "scale": record["box"][2:4],
-                    "area": record["box"][4],
-                    "score": record["box"][5],
-                    "image_id": image_id,
-                    "bbox_id": record["bbox_id"],
-                }
-            )
-        kpts = self._sort_and_unique_bboxes(kpts)
+            for kpt, score in zip(record["pred"], record["score"]):
+                # kpt: K x 4
+                area = (np.max(kpt[:, 0]) - np.min(kpt[:, 0])) * (
+                    np.max(kpt[:, 1]) - np.min(kpt[:, 1])
+                )
+                kpts[image_id].append(
+                    {
+                        "keypoints": kpt[:, :3],
+                        "score": score,
+                        "image_id": image_id,
+                        "area": area,
+                    }
+                )
 
-        # rescoring and oks nms
-        vis_thr = self._evaluation_cfg["vis_thr"]
+        # oks nms if necessary
         oks_thr = self._evaluation_cfg["oks_thr"]
         valid_kpts = []
         for image_id in kpts.keys():
             img_kpts = kpts[image_id]
-            for n_p in img_kpts:
-                box_score = n_p["score"]
-                kpt_score = 0
-                valid_num = 0
-                for n_jt in range(0, self.num_joints):
-                    t_s = n_p["keypoints"][n_jt][2]
-                    if t_s > vis_thr:
-                        kpt_score = kpt_score + t_s
-                        valid_num = valid_num + 1
-                if valid_num != 0:
-                    kpt_score = kpt_score / valid_num
-                # rescoring
-                n_p["score"] = kpt_score * box_score
-
             if self._evaluation_cfg["use_nms"]:
                 nms = soft_oks_nms if self._evaluation_cfg["soft_nms"] else oks_nms
                 keep = nms(
@@ -135,14 +120,3 @@ class TopDownEvaluator(Evaluator):
             os.remove(self.result_path)
 
         return name_value
-
-    def _sort_and_unique_bboxes(self, kpts: Dict[int, Any], key: str = "bbox_id"):
-        """sort kpts and remove the repeated ones."""
-        for img_id, persons in kpts.items():
-            num = len(persons)
-            kpts[img_id] = sorted(kpts[img_id], key=lambda x: x[key])
-            for i in range(num - 1, 0, -1):
-                if kpts[img_id][i][key] == kpts[img_id][i - 1][key]:
-                    del kpts[img_id][i]
-
-        return kpts
