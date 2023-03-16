@@ -40,7 +40,8 @@ MindPose is an open-source toolbox for pose estimation based on [MindSpore](http
 - pycocotools >= 2.0.6
 - opencv-python >=4.2.0.34, <= 4.5.4.60
 - tqdm >= 4.6.1
-- openmpi 4.0.3 (for distributed mode) 
+- munkres >= 1.1.4
+- openmpi 4.1.2 (for distributed mode)
 
 To install the dependency, please run
 ```shell

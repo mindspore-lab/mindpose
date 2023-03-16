@@ -161,7 +161,7 @@ class BottomUpRescale(BottomUpTransform):
             target_h = max_h
             target_w = round(w * max_h / h)
 
-        return target_w, target_h
+        return int(target_w), int(target_h)
 
     def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Transform the state into the transformed state. state is a dictionay
@@ -176,7 +176,7 @@ class BottomUpRescale(BottomUpTransform):
 
         Note:
             | Required `keys` for transform: image
-            | Returned `keys` after transform: image, center, scale
+            | Returned `keys` after transform: image, center, scale, image_shape
         """
         image = state["image"]
         height, width = image.shape[:2]
@@ -188,7 +188,7 @@ class BottomUpRescale(BottomUpTransform):
 
         image = cv2.resize(
             image,
-            (int(target_size[0]), int(target_size[1])),
+            (target_size[0], target_size[1]),
             interpolation=cv2.INTER_LINEAR,
         )
 
@@ -200,6 +200,7 @@ class BottomUpRescale(BottomUpTransform):
         transformed_state["image"] = image
         transformed_state["center"] = center
         transformed_state["scale"] = scale
+        transformed_state["image_shape"] = target_size
         return transformed_state
 
 
