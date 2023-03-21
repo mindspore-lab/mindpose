@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict, List, Optional
 
 from mindspore.dataset import Dataset
@@ -60,4 +61,7 @@ class Inferencer:
         raise NotImplementedError("Child class must implement this method.")
 
     def __call__(self, dataset: Dataset) -> List[Dict[str, Any]]:
-        return self.infer(dataset)
+        logging.info("Start inferencing...")
+        result = self.infer(dataset)
+        logging.info("Start inferencing...done.")
+        return result

@@ -17,9 +17,9 @@ class JointsMSELoss(Loss):
         use_target_weight: Use extra weight in loss calculation
 
     Inputs:
-        | pred: Predictions, in shape [N, C, H, W]
-        | target: Ground truth, in shape [N, C, H, W]
-        | target_weight: Loss weight, in shape [N, C]
+        | pred: Predictions, in shape [N, K, H, W]
+        | target: Ground truth, in shape [N, K, H, W]
+        | target_weight: Loss weight, in shape [N, K]
 
     Outputs:
         | loss: Loss value
@@ -51,8 +51,8 @@ class JointsMSELossWithMask(Loss):
     Mask-out position will not contribute to the loss.
 
     Inputs:
-        | pred: Predictions, in shape [N, C, H, W]
-        | target: Ground truth, in shape [N, C, H, W]
+        | pred: Predictions, in shape [N, K, H, W]
+        | target: Ground truth, in shape [N, K, H, W]
         | mask: Ground truth Mask, in shape [N, H, W]
 
     Outputs:

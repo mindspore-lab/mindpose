@@ -23,6 +23,8 @@ class AEMultiLoss(Loss):
             Default: [True, False]
         with_ae_loss: Whether each level involves calculating AE loss.
             Default: [True, False]
+        tag_per_joint: Whether each of the joint has its own coordinate encoding.
+            Default: True
 
     Inputs:
         | pred: List of prediction result at each resolution level. In shape [N, aK,
@@ -31,7 +33,7 @@ class AEMultiLoss(Loss):
         | target: Ground truth of heatmap. In shape [N, S, K, H, W]. Where S stands for
             the number of resolution levels.
         | mask: Ground truth of the heatmap mask. In shape [N, S, H, W].
-        | tag_mask: Ground truth of tag position. In shape [N, S, M, K, H, W]. Where M
+        | tag_ind: Ground truth of tag position. In shape [N, S, M, K, 2]. Where M
             stands for number of instances.
 
     Outputs:
@@ -47,10 +49,11 @@ class AEMultiLoss(Loss):
         ae_loss_factor: List[float] = [0.001, 0.001],
         with_mse_loss: List[bool] = [True, True],
         with_ae_loss: List[bool] = [True, False],
+        tag_per_joint: bool = True,
     ) -> None:
         super().__init__()
         self.mse_criterion = JointsMSELossWithMask()
-        self.ae_criterion = AELoss(reduce=True)
+        self.ae_criterion = AELoss(reduce=True, tag_per_joint=tag_per_joint)
 
         self.num_joints = num_joints
         self.num_stages = num_stages
@@ -59,29 +62,24 @@ class AEMultiLoss(Loss):
         self.ae_loss_factor = ae_loss_factor
         self.with_mse_loss = with_mse_loss
         self.with_ae_loss = with_ae_loss
-
-        if any(self.with_ae_loss):
-            if not with_ae_loss[0]:
-                raise ValueError(
-                    "0th element of `with_ae_loss` must be true "
-                    "in case when ae_loss is used."
-                )
+        self.tag_per_joint = tag_per_joint
 
     def construct(
         self,
-        pred: List[Tensor],
+        preds: List[Tensor],
         target: Tensor,
         mask: Tensor,
-        tag_mask: Tensor,
+        tag_ind: Tensor,
     ) -> Tensor:
         loss = 0.0
 
         for i in range(self.num_stages):
             W, H = self.stage_sizes[i]
+            pred = preds[i]
             if self.with_mse_loss[i]:
                 loss += (
                     self.mse_criterion(
-                        pred[i][:, : self.num_joints, ...],
+                        pred[:, : self.num_joints],
                         target[:, i, :, :H, :W],
                         mask[:, i, :H, :W],
                     )
@@ -89,10 +87,15 @@ class AEMultiLoss(Loss):
                 )
 
             if self.with_ae_loss[i]:
-                loss += (
-                    self.ae_criterion(
-                        pred[i][:, self.num_joints :, ...], tag_mask[:, i, ...]
+                if self.tag_per_joint:
+                    loss += (
+                        self.ae_criterion(pred[:, self.num_joints :], tag_ind[:, i])
+                        * self.ae_loss_factor[i]
                     )
-                    * self.ae_loss_factor[i]
-                )
+                else:
+                    loss += (
+                        self.ae_criterion(pred[:, self.num_joints], tag_ind[:, i])
+                        * self.ae_loss_factor[i]
+                    )
+
         return loss

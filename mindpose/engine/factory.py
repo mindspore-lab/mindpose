@@ -9,8 +9,6 @@ from .inferencer import Inferencer
 
 __all__ = ["create_inferencer", "create_evaluator"]
 
-_logger = logging.getLogger(__name__)
-
 
 def create_inferencer(
     net: EvalNet,
@@ -81,6 +79,6 @@ def _merge_configs(
 ) -> Dict[str, Any]:
     common_keys = set(config_1.keys()).intersection(config_2.keys())
     if len(common_keys) > 0:
-        _logger.warning(f"Duplicated keys found in two configs: `{common_keys}`")
+        logging.warning(f"Duplicated keys found in two configs: `{common_keys}`")
     merged_config = {**config_1, **config_2}
     return merged_config

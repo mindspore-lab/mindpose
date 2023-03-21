@@ -14,7 +14,7 @@ from .bottomup import BottomUpDataset
 @register("dataset", extra_name="coco_bottomup")
 class COCOBottomUpDataset(BottomUpDataset):
     """Create an iterator for ButtomUp dataset,
-    return the tuple with (image, boxes, keypoints, mask, target, tag_mask)
+    return the tuple with (image, boxes, keypoints, mask, target, tag_ind)
     for training; return the tuple with (image, mask, center, scale, image_file,
     image_shape) for evaluation.
 
