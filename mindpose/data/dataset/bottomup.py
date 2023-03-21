@@ -5,7 +5,7 @@ import numpy as np
 
 class BottomUpDataset:
     """Create an iterator for ButtomUp dataset,
-    return the tuple with (image, boxes, keypoints, target, mask, tag_mask)
+    return the tuple with (image, boxes, keypoints, target, mask, tag_ind)
     for training; return the tuple with (image, mask, center, scale, image_file,
     image_shape) for evaluation.
 
@@ -21,7 +21,7 @@ class BottomUpDataset:
         | keypoints: Keypoints in (x, y, visibility)
         | mask: Mask of the image showing the valid annotations
         | target: A placeholder for later pipline using
-        | tag_mask: A placeholder of later pipline using
+        | tag_ind: A placeholder of later pipline using
         | image_file: Path of the image file
         | boxes: Bounding box coordinate (x0, y0), (x1, y1)
 
@@ -87,7 +87,7 @@ class BottomUpDataset:
                 np.asarray(record["keypoints"], dtype=np.float32),
                 np.float32(0),  # placeholder for target
                 np.asarray(mask, dtype=np.uint8),
-                np.uint8(0),  # placeholder for tag_mask
+                np.int32(0),  # placeholder for tag_ind
             )
         return (
             image,

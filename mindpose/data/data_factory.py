@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict, List, Optional, Union
 
 import mindspore.dataset.vision as vision
@@ -6,7 +7,6 @@ from mindspore.dataset import Dataset, GeneratorDataset
 
 from ..register import entrypoint
 from .column_names import COLUMN_MAP, FINAL_COLUMN_MAP
-
 from .transform import Transform
 
 
@@ -22,7 +22,7 @@ def create_dataset(
     rank_id: Optional[int] = None,
     num_workers: int = 1,
     config: Optional[Dict[str, Any]] = None,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> GeneratorDataset:
     """Create dataset for training or evaluation.
 
@@ -139,6 +139,10 @@ def create_pipeline(
 
     # remove unessary outputs
     dataset = dataset.project(final_column_names)
+
+    if method in {"bottomup"} and not is_train:
+        logging.info(f"Set batch_size = 1 for `{method}` evaluation method.")
+        batch_size = 1
 
     # batch
     dataset = dataset.batch(

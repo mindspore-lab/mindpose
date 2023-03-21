@@ -154,6 +154,9 @@ class BottomUpRescale(BottomUpTransform):
         w, h = image_size
         max_w, max_h = max_size
 
+        if w < h:
+            max_w, max_h = max_h, max_w
+
         if w / h > max_w / max_h:
             target_w = max_w
             target_h = round(h * max_w / w)
@@ -375,7 +378,6 @@ class BottomUpGenerateTarget(BottomUpTransform):
         config: Method-specific configuration. Default: None
         sigma: The sigmal size of gausian distribution. Default: 2.0
         max_num: Maximum number of instances within the image. Default: 30
-        with_tag_mask: Output the tag mask for each resolution. Default: [True, False]
 
     Inputs:
         | data: Data tuples need to be transformed
@@ -390,12 +392,10 @@ class BottomUpGenerateTarget(BottomUpTransform):
         config: Optional[Dict[str, Any]] = None,
         sigma: float = 2.0,
         max_num: int = 30,
-        with_tag_mask: List[bool] = [True, False],
     ) -> None:
         super().__init__(is_train=is_train, config=config)
         self.sigma = sigma
         self.max_num = max_num
-        self.with_tag_mask = with_tag_mask
 
     def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """Transform the state into the transformed state. state is a dictionay
@@ -410,45 +410,35 @@ class BottomUpGenerateTarget(BottomUpTransform):
 
         Note:
             | Required `keys` for transform: keypoints
-            | Returned `keys` after transform: target, tag_mask
+            | Returned `keys` after transform: target, tag_ind
         """
         return self._encoding(state)
 
     def _encoding(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        target_list, tag_mask_list = list(), list()
-        for i, (keypoint, heatmap_size) in enumerate(
-            zip(state["keypoints"], self._transform_cfg["heatmap_sizes"])
+        target_list, tag_ind_list = list(), list()
+        for keypoint, heatmap_size in zip(
+            state["keypoints"], self._transform_cfg["heatmap_sizes"]
         ):
-            target, tag_mask = self._generate_heatmap_and_tag_mask(
-                keypoint, heatmap_size, return_tag_mask=self.with_tag_mask[i]
-            )
+            target, tag_ind = self._generate_heatmap_and_tag_ind(keypoint, heatmap_size)
 
             target_list.append(target)
-            if tag_mask is not None:
-                tag_mask_list.append(tag_mask)
+            tag_ind_list.append(tag_ind)
 
         # pad the heatmap to the same shape
         target_list = pad_to_same(target_list)
-        if len(tag_mask_list) > 1:
-            tag_mask_list = pad_to_same(tag_mask_list)
-            tag_mask = np.stack(tag_mask_list)
-        else:
-            tag_mask = tag_mask_list[0]
-            tag_mask = tag_mask[None, ...]
 
-        tag_mask = np.stack(tag_mask)
         target = np.stack(target_list)
+        tag_ind = np.stack(tag_ind_list)
 
-        transformed_state = dict(target=target, tag_mask=tag_mask)
+        transformed_state = dict(target=target, tag_ind=tag_ind)
         return transformed_state
 
-    def _generate_heatmap_and_tag_mask(
+    def _generate_heatmap_and_tag_ind(
         self,
         keypoints: np.ndarray,
         heatmap_size: np.ndarray,
-        return_tag_mask: bool = False,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """Generate heatmap and tag mask for keypoints"""
+        """Generate heatmap and tag ind for keypoints"""
         W, H = heatmap_size
         M, K, _ = keypoints.shape
 
@@ -459,13 +449,10 @@ class BottomUpGenerateTarget(BottomUpTransform):
             )
 
         target = np.zeros((K, H, W), dtype=np.float32)
-        if return_tag_mask:
-            if self._transform_cfg["tag_per_joint"]:
-                tag_mask = np.zeros((self.max_num, K, H, W), dtype=np.uint8)
-            else:
-                tag_mask = np.zeros((self.max_num, H, W), dtype=np.uint8)
+        if self._transform_cfg["tag_per_joint"]:
+            tag_ind = np.zeros((self.max_num, K, 2), dtype=np.int32)
         else:
-            tag_mask = None
+            tag_ind = np.zeros((self.max_num, 2), dtype=np.int32)
 
         # 3-sigma rule
         tmp_size = self.sigma * 3
@@ -509,13 +496,12 @@ class BottomUpGenerateTarget(BottomUpTransform):
                     if mu_x >= W or mu_y >= H or mu_x < 0 or mu_y < 0:
                         continue
 
-                    if return_tag_mask:
-                        if self._transform_cfg["tag_per_joint"]:
-                            tag_mask[m, idx, mu_y, mu_x] = True
-                        else:
-                            tag_mask[m, mu_y, mu_x] = True
+                    if self._transform_cfg["tag_per_joint"]:
+                        tag_ind[m, idx] = (mu_y * W + mu_x, 1)
+                    else:
+                        tag_ind[m] = (mu_y * W + mu_x, 1)
 
-        return target, tag_mask
+        return target, tag_ind
 
 
 @register("transform", extra_name="bottomup_pad")
@@ -545,6 +531,10 @@ class BottomUpPad(BottomUpTransform):
         image = state["image"]
         height, width = image.shape[:2]
         target_width, target_height = self._transform_cfg["max_image_size"]
+
+        if width < height:
+            target_height, target_width = target_width, target_height
+
         assert target_width >= width
         assert target_height >= height
 

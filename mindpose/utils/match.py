@@ -1,14 +1,13 @@
 from collections import defaultdict
 from typing import List
 
-import munkres
 import numpy as np
+import scipy.optimize
 
 
-def _py_max_match(scores: np.ndarray) -> np.ndarray:
-    m = munkres.Munkres()
-    assoc = m.compute(scores)
-    assoc = np.array(assoc).astype(np.int32)
+def _max_match(scores: np.ndarray) -> np.ndarray:
+    assoc = scipy.optimize.linear_sum_assignment(scores)
+    assoc = np.array(assoc).T.astype(np.int32)
     return assoc
 
 
@@ -98,7 +97,7 @@ def match_by_tag(
                     axis=1,
                 )
 
-            pairs = _py_max_match(diff_normed)
+            pairs = _max_match(diff_normed)
             for row, col in pairs:
                 if (
                     row < num_added

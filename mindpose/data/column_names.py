@@ -43,10 +43,10 @@ _BOTTOMUP_TRAIN_COLUMN_NAMES = [
     "keypoints",
     "target",
     "mask",
-    "tag_mask",
+    "tag_ind",
 ]
 
-_BOTTOMUP_TRAIN_FINAL_COLUMN_NAMES = ["image", "target", "mask", "tag_mask"]
+_BOTTOMUP_TRAIN_FINAL_COLUMN_NAMES = ["image", "target", "mask", "tag_ind"]
 
 _BOTTOMUP_VAL_COLUMN_NAMES = [
     "image",

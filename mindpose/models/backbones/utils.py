@@ -6,8 +6,6 @@ import mindspore as ms
 from ...utils.download import DownLoad
 from .backbone import Backbone
 
-_logger = logging.getLogger(__name__)
-
 
 def load_pretrained(
     net: Backbone, ckpt_url: str, download_dir: str = "./cache/pretrained/"
@@ -25,7 +23,7 @@ def load_pretrained(
     else:
         # download files
         os.makedirs(download_dir, exist_ok=True)
-        _logger.info(
+        logging.info(
             f"Saving the pretrained weight from `{ckpt_url}` to `{download_dir}`"
         )
         try:
@@ -36,9 +34,9 @@ def load_pretrained(
             ) from e
         local_ckpt_path = os.path.join(download_dir, os.path.basename(ckpt_url))
 
-    _logger.info(f"Loading the checkpoint from `{local_ckpt_path}`")
+    logging.info(f"Loading the checkpoint from `{local_ckpt_path}`")
 
     try:
         ms.load_checkpoint(local_ckpt_path, net=net, strict_load=False)
     except ValueError as e:
-        _logger.warning(f"Cannot load checkpoint from {local_ckpt_path}. ({str(e)})")
+        logging.warning(f"Cannot load checkpoint from {local_ckpt_path}. ({str(e)})")

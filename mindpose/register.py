@@ -8,12 +8,10 @@ _module_to_components = defaultdict(set)
 _components_to_module = dict()
 _entrypoints = defaultdict(dict)
 
-_logger = logging.getLogger(__name__)
-
 
 def _global_register(module_name: str, func_name: str, fn: Callable[..., Any]) -> None:
     if func_name in _entrypoints[module_name]:
-        _logger.warning(f"`{func_name}` is already registered")
+        logging.warning(f"`{func_name}` is already registered")
     _entrypoints[module_name][func_name] = fn
     _components_to_module[func_name] = module_name
     _module_to_components[module_name].add(func_name)

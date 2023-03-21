@@ -58,6 +58,7 @@ def visual_gt_heatmap(args: Namespace) -> None:
 
         img = data["image"][0][..., ::-1]  # RGB to BGR
         heatmap = data["target"][0] * 255
+        _, K, H, W = heatmap.shape
         # in case of muli-resolution heatmap, choose the largest one
         if len(heatmap.shape) == 4:
             heatmap = heatmap[-1]
@@ -90,11 +91,16 @@ def visual_gt_heatmap(args: Namespace) -> None:
             _logger.info(f"Saving to {fpath}")
             cv2.imwrite(fpath, mask)
 
-        if "tag_mask" in data:
-            tag_mask = data["tag_mask"][0] * 255
-            if len(tag_mask.shape) == 5:
-                tag_mask = tag_mask[-1]
+        if "tag_ind" in data:
+            tag_ind = data["tag_ind"][0]  # S, M, K, 2
+            if len(tag_ind.shape) == 4:
+                tag_ind = tag_ind[-1]
+            M = tag_ind.shape[0]
+            tag_mask = np.zeros((M, K, H * W), dtype=np.uint8)
+            np.put_along_axis(tag_mask, tag_ind[..., 0:1], tag_ind[..., 1:2], axis=2)
+            tag_mask = tag_mask.reshape(M, K, H, W)
             tag_mask = tag_mask.sum(axis=(0, 1))
+            tag_mask *= 255
             tag_mask = cv2.resize(
                 tag_mask,
                 dsize=(img.shape[1], img.shape[0]),

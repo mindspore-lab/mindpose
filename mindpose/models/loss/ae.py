@@ -16,43 +16,58 @@ class AELoss(Loss):
 
     Args:
         reduce: Whether reduce the loss into the single value. Default: False
+        tag_per_joint: Whether each of the joint has its own coordinate encoding.
+            Default: True
 
     Inputs:
-        | pred: Predicted tags. In shape [N, K, H, W]. Where K stands for the
-            number of joints.
-        | target: Ground truth of tag mask. In shape [N, M, K, H, W]. Where M stands
-            for number of instances.
+        | pred: Predicted tags. In shape [N, K, H, W] if tag_per_joint is True; in
+            shape [N, H, W] otherwise. Where K stands for the number of joints.
+        | target: Ground truth of tag mask. In shape [N, M, K, 2] if tag_per_joint is
+            True; in shape [N, M, 2] otherwise. Where M stands for number of instances.
 
     Outputs:
         | loss: Loss value if reduce is True; Otherwise return the tuple of pull and
             push loss
     """
 
-    def __init__(self, reduce: bool = False) -> None:
+    def __init__(self, reduce: bool = False, tag_per_joint: bool = True) -> None:
         super().__init__()
         self.reduce = reduce
-        self.eps = 0.001
+        self.tag_per_joint = tag_per_joint
+        self.eps = 0.01
 
     def construct(
         self, pred: Tensor, target: Tensor
     ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
-        N, M, _, _, _ = target.shape
+        if not self.tag_per_joint:
+            # insert the dimension K=1
+            pred = pred[:, None, ...]
+            target = target[..., None, :]
 
-        target_bool = ops.cast(target, ms.bool_)
-        target = ops.cast(target, pred.dtype)
+        N, K, H, W = pred.shape
+        M = target.shape[1]
+
+        # convert the index [N, M, K, 2] to mask [N, M, K, H, W]
+        target_mask = ops.zeros((N, M, K, H * W), pred.dtype)
+        update = ops.cast(target[..., 1:2], pred.dtype)
+        target_mask = ops.tensor_scatter_elements(
+            target_mask, target[..., 0:1], update, axis=3
+        )
+        target_mask = ops.reshape(target_mask, (N, M, K, H, W))
+
+        target_mask_bool = ops.cast(target_mask, ms.bool_)
 
         pred = pred[:, None, ...]
-        pred = ops.masked_fill(pred, ~target_bool, 0.0)
+        pred = ops.masked_fill(pred, ~target_mask_bool, 0.0)
 
         # calculate the reference embedding for each instance
-        h_n = pred.sum(axis=(2, 3, 4)) / (target.sum(axis=(2, 3, 4)) + self.eps)
+        k_n = target_mask.sum(axis=(2, 3, 4))
+        h_n = pred.sum(axis=(2, 3, 4)) / (k_n + self.eps)
 
         # calculate the pull loss
-        diff = (h_n[..., None, None, None] - pred) * target
-        pull_loss = (diff**2).sum(axis=(2, 3, 4)) / (
-            target.sum(axis=(2, 3, 4)) + self.eps
-        )
-        mask = ops.cast(target.sum(axis=(2, 3, 4)) > 0, diff.dtype)
+        diff = (h_n[..., None, None, None] - pred) * target_mask
+        pull_loss = (diff**2).sum(axis=(2, 3, 4)) / (k_n + self.eps)
+        mask = ops.cast(k_n > 0, diff.dtype)
         m = mask.sum(axis=1)
         pull_loss = pull_loss.sum(axis=1) / (m + self.eps)
 

@@ -12,8 +12,6 @@ from ..engine.evaluator import Evaluator
 from ..engine.inferencer import Inferencer
 from ..utils.misc import Allreduce, AverageMeter
 
-_logger = logging.getLogger(__name__)
-
 
 class EvalCallback(Callback):
     """Running evaluation during training.
@@ -73,10 +71,10 @@ class EvalCallback(Callback):
         self.device_num = device_num if device_num is not None else 1
 
         if self.inferencer is None or self.evaluator is None or self.dataset is None:
-            _logger.info("Evaluation during training is disabled.")
+            logging.info("Evaluation during training is disabled.")
             self._eval_during_train = False
             if self.save_best:
-                _logger.warning(
+                logging.warning(
                     "Best model cannot be saved since `val_while_train` is diabled."
                 )
         else:
@@ -122,7 +120,7 @@ class EvalCallback(Callback):
         except TypeError:  # constant lr is not callable
             lr = optimizer.learning_rate
 
-        _logger.info(
+        logging.info(
             f"[rank = {self.rank_id}] epoch = {cur_epoch}, lr = {lr.asnumpy():.3e}, "
             f"loss = {self.loss_meter.avg.asnumpy():.6f}"
         )
@@ -143,13 +141,17 @@ class EvalCallback(Callback):
                 # make sure the inferencer is not for training
                 self.inferencer.net.set_train(False)
                 result = self.inferencer(self.dataset)
-                output = self.evaluator(result)
-                _logger.info(output)
-                target_result = output[self.target_metric_name]
-                if self.save_best:
-                    self._save_best_model(
-                        cb_param.train_network, target_result, cur_epoch
-                    )
+                try:
+                    output = self.evaluator(result)
+                    logging.info(output)
+                    target_result = output[self.target_metric_name]
+                    if self.save_best:
+                        self._save_best_model(
+                            cb_param.train_network, target_result, cur_epoch
+                        )
+                except Exception as e:
+                    logging.warning(f"Error occured at evaluation. {(str(e))}")
+                    output = dict()
 
         # add summary record
         if self.rank_id == 0:
@@ -164,7 +166,7 @@ class EvalCallback(Callback):
             self.summary_record.flush()
 
     def _save_best_model(self, net: nn.Cell, result: float, cur_epoch: int) -> None:
-        _logger.info(
+        logging.info(
             f"epoch: {cur_epoch}, "
             f"current result: {result:.3f}, "
             f"previous_best_result: {self.best_result:.3f}."
@@ -173,19 +175,19 @@ class EvalCallback(Callback):
             self.best_result = result
             self.best_epoch = cur_epoch
             ms.save_checkpoint(net, self.best_ckpt_path)
-            _logger.info(
+            logging.info(
                 f"Best result is {self.best_result:.3f} at {self.best_epoch} epoch. "
                 f"Best checkpoint is saved at `{self.best_ckpt_path}`."
             )
         else:
-            _logger.info(
+            logging.info(
                 f"Best result is {self.best_result:.3f} at {self.best_epoch} epoch. "
                 "Best checkpoint is unchanged."
             )
 
     def _save_last_model(self, net: nn.Cell) -> None:
         ms.save_checkpoint(net, self.last_ckpt_path)
-        _logger.info(f"Last checkpoint is saved at `{self.last_ckpt_path}`.")
+        logging.info(f"Last checkpoint is saved at `{self.last_ckpt_path}`.")
 
     def _get_loss(self, cb_params: Dict[str, Any]) -> Tensor:
         """
@@ -198,7 +200,7 @@ class EvalCallback(Callback):
         """
         output = cb_params.net_outputs
         if output is None:
-            _logger.warning(
+            logging.warning(
                 "Can not find any output by this network, "
                 "so SummaryCollector will not collect loss."
             )
@@ -211,7 +213,7 @@ class EvalCallback(Callback):
             # we assume that the first one is loss.
             loss = output[0]
         else:
-            _logger.warning(
+            logging.warning(
                 "The output type could not be identified, expect type is one of "
                 "[int, float, Tensor, list, tuple], "
                 "so no loss was recorded in SummaryCollector."
