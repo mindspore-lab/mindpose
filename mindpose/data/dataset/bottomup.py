@@ -1,3 +1,4 @@
+import logging
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -45,6 +46,7 @@ class BottomUpDataset:
         self.config = config if config else dict()
         self._dataset_cfg = self.load_dataset_cfg()
         self._dataset = self.load_dataset()
+        logging.info(f"Number of records in dataset: {len(self._dataset)}")
 
     def load_dataset_cfg(self) -> Dict[str, Any]:
         """Loading the dataset config, where the returned config must be a dictionary

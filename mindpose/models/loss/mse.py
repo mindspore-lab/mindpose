@@ -1,7 +1,6 @@
 from typing import Optional
 
 import mindspore.nn as nn
-import mindspore.ops as ops
 from mindspore import Tensor
 
 from ...register import register
@@ -14,7 +13,9 @@ class JointsMSELoss(Loss):
     It is the MSE loss of heatmaps with extra weight for different channel.
 
     Args:
-        use_target_weight: Use extra weight in loss calculation
+        use_target_weight: Use extra weight in loss calculation. Default: False
+        reduction: Type of the reduction to be applied to loss. The optional value
+            are "mean", "sum" and "none". Default: "mean"
 
     Inputs:
         | pred: Predictions, in shape [N, K, H, W]
@@ -25,23 +26,21 @@ class JointsMSELoss(Loss):
         | loss: Loss value
     """
 
-    def __init__(self, use_target_weight: bool = False) -> None:
-        super().__init__()
+    def __init__(
+        self, use_target_weight: bool = False, reduction: Optional[str] = "mean"
+    ) -> None:
+        super().__init__(reduction=reduction)
         self.use_target_weight = use_target_weight
-        if self.use_target_weight:
-            self.criterion = nn.MSELoss(reduction="none")
-        else:
-            self.criterion = nn.MSELoss(reduction="mean")
+        self.criterion = nn.MSELoss(reduction="none")
 
     def construct(
         self, pred: Tensor, target: Tensor, target_weight: Optional[Tensor] = None
     ) -> Tensor:
+        loss = self.criterion(pred, target)
         if self.use_target_weight:
-            loss = self.criterion(pred, target)
-            loss = target_weight[..., None, None] * loss
-            loss = ops.mean(loss)
+            loss = self.get_loss(loss, target_weight[..., None, None])
         else:
-            loss = self.criterion(pred, target)
+            loss = self.get_loss(loss)
         return loss
 
 
@@ -49,6 +48,10 @@ class JointsMSELoss(Loss):
 class JointsMSELossWithMask(Loss):
     """Joint Mean square error loss with mask.
     Mask-out position will not contribute to the loss.
+
+    Args:
+        reduction: Type of the reduction to be applied to loss. The optional value
+            are "mean", "sum" and "none". Default: "mean"
 
     Inputs:
         | pred: Predictions, in shape [N, K, H, W]
@@ -59,12 +62,11 @@ class JointsMSELossWithMask(Loss):
         | loss: Loss value
     """
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, reduction: Optional[str] = "mean") -> None:
+        super().__init__(reduction=reduction)
         self.criterion = nn.MSELoss(reduction="none")
 
     def construct(self, pred: Tensor, target: Tensor, mask: Tensor) -> Tensor:
         loss = self.criterion(pred, target)
-        loss = mask[:, None, :, :] * loss
-        loss = ops.mean(loss)
+        loss = self.get_loss(loss, mask[:, None, :, :])
         return loss
