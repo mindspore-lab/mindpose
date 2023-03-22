@@ -107,7 +107,6 @@ class EvalCallback(Callback):
     def on_train_step_end(self, run_context: RunContext) -> None:
         cb_param = run_context.original_args()
         loss = self._get_loss(cb_param)
-        loss = loss.asnumpy()
         self.loss_meter.update(loss)
 
     def on_train_epoch_end(self, run_context: RunContext) -> None:
@@ -122,7 +121,7 @@ class EvalCallback(Callback):
 
         logging.info(
             f"[rank = {self.rank_id}] epoch = {cur_epoch}, lr = {lr.asnumpy():.3e}, "
-            f"loss = {self.loss_meter.avg.asnumpy():.6f}"
+            f"loss = {self.loss_meter.avg.asnumpy().sum():.6f}"
         )
 
         if self.device_num > 1:
@@ -130,6 +129,9 @@ class EvalCallback(Callback):
             loss_avg /= self.device_num
         else:
             loss_avg = self.loss_meter.avg
+
+        # reset the loss_meter after each epoch
+        self.loss_meter.reset()
 
         if self.rank_id == 0:
             if self.save_last:
@@ -159,7 +161,17 @@ class EvalCallback(Callback):
                 self.summary_record.add_value(
                     "scalar", "val/" + metric_name, Tensor(metric_value)
                 )
-            self.summary_record.add_value("scalar", "train/loss", loss_avg)
+
+            # record the loss item separately
+            if loss_avg.size == 1:
+                self.summary_record.add_value("scalar", "train/loss", loss_avg)
+            else:
+                self.summary_record.add_value("scalar", "train/loss", loss_avg.sum())
+                for i, loss_item in enumerate(loss_avg):
+                    self.summary_record.add_value(
+                        "scalar", f"train/loss_{i}", loss_item
+                    )
+
             self.summary_record.add_value("scalar", "train/lr", lr)
             self.summary_record.add_value("scalar", "epoch", Tensor(cur_epoch))
             self.summary_record.record(cb_param.cur_step_num)
@@ -223,5 +235,4 @@ class EvalCallback(Callback):
         if not isinstance(loss, Tensor):
             loss = Tensor(loss)
 
-        loss = loss.mean()
         return loss

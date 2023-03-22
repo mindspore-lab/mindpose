@@ -1,3 +1,4 @@
+import logging
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
@@ -55,8 +56,6 @@ class TopDownDataset:
         self.use_gt_bbox_for_val = use_gt_bbox_for_val
         self.detection_file = detection_file
         self.config = config if config else dict()
-        self._dataset_cfg = self.load_dataset_cfg()
-        self._dataset = self.load_dataset()
 
         if self.annotation_file is None:
             if not self.is_train and not self.use_gt_bbox_for_val:
@@ -64,6 +63,10 @@ class TopDownDataset:
                     "For evaluation, `detection_file` must be provided "
                     "when `use_gt_bbox_for_val` is `False`"
                 )
+
+        self._dataset_cfg = self.load_dataset_cfg()
+        self._dataset = self.load_dataset()
+        logging.info(f"Number of records in dataset: {len(self._dataset)}")
 
     def load_dataset_cfg(self) -> Dict[str, Any]:
         """Loading the dataset config, where the returned config must be a dictionary

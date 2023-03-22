@@ -1,4 +1,4 @@
-from typing import Tuple, Union
+from typing import Optional
 
 import mindspore as ms
 import mindspore.ops as ops
@@ -15,9 +15,10 @@ class AELoss(Loss):
     <https://arxiv.org/abs/1611.05424>`_.
 
     Args:
-        reduce: Whether reduce the loss into the single value. Default: False
         tag_per_joint: Whether each of the joint has its own coordinate encoding.
             Default: True
+        reduction: Type of the reduction to be applied to loss. The optional value
+            are "mean", "sum" and "none". Default: "mean"
 
     Inputs:
         | pred: Predicted tags. In shape [N, K, H, W] if tag_per_joint is True; in
@@ -26,19 +27,17 @@ class AELoss(Loss):
             True; in shape [N, M, 2] otherwise. Where M stands for number of instances.
 
     Outputs:
-        | loss: Loss value if reduce is True; Otherwise return the tuple of pull and
-            push loss
+        | loss: Loss tensor contains the push loss and the pull loss.
     """
 
-    def __init__(self, reduce: bool = False, tag_per_joint: bool = True) -> None:
-        super().__init__()
-        self.reduce = reduce
+    def __init__(
+        self, tag_per_joint: bool = True, reduction: Optional[str] = "mean"
+    ) -> None:
+        super().__init__(reduction=reduction)
         self.tag_per_joint = tag_per_joint
         self.eps = 0.01
 
-    def construct(
-        self, pred: Tensor, target: Tensor
-    ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
+    def construct(self, pred: Tensor, target: Tensor) -> Tensor:
         if not self.tag_per_joint:
             # insert the dimension K=1
             pred = pred[:, None, ...]
@@ -85,9 +84,6 @@ class AELoss(Loss):
         push_loss -= m
         push_loss = 0.5 * push_loss / (m * (m - 1) + self.eps)
 
-        if self.reduce:
-            push_loss = push_loss.mean()
-            pull_loss = pull_loss.mean()
-            return push_loss + pull_loss
-
-        return push_loss, pull_loss
+        push_loss = self.get_loss(push_loss)
+        pull_loss = self.get_loss(pull_loss)
+        return ops.stack([push_loss, pull_loss])

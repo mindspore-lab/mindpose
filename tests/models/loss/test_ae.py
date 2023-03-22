@@ -8,7 +8,7 @@ from mindspore import Tensor
 def test_ae():
     ms.set_context(mode=ms.GRAPH_MODE)
 
-    criterion = AELoss(reduce=True)
+    criterion = AELoss()
 
     # pred: [N, K, H, W]
     pred = Tensor(
@@ -28,7 +28,7 @@ def test_ae():
 def test_ae_with_tag_per_joint_is_false():
     ms.set_context(mode=ms.GRAPH_MODE)
 
-    criterion = AELoss(reduce=True, tag_per_joint=False)
+    criterion = AELoss(tag_per_joint=False)
 
     # pred: [N, H, W]
     pred = Tensor(np.arange(0, 2 * 1 * 4 * 4).reshape(2, 4, 4) * 0.01, dtype=ms.float32)

@@ -1,5 +1,6 @@
 from typing import List, Tuple
 
+import mindspore.ops as ops
 from mindspore import Tensor
 
 from ...register import register
@@ -53,7 +54,7 @@ class AEMultiLoss(Loss):
     ) -> None:
         super().__init__()
         self.mse_criterion = JointsMSELossWithMask()
-        self.ae_criterion = AELoss(reduce=True, tag_per_joint=tag_per_joint)
+        self.ae_criterion = AELoss(tag_per_joint=tag_per_joint)
 
         self.num_joints = num_joints
         self.num_stages = num_stages
@@ -71,13 +72,15 @@ class AEMultiLoss(Loss):
         mask: Tensor,
         tag_ind: Tensor,
     ) -> Tensor:
-        loss = 0.0
+        total_mse_loss = 0.0
+        total_push_loss = 0.0
+        total_pull_loss = 0.0
 
         for i in range(self.num_stages):
             W, H = self.stage_sizes[i]
             pred = preds[i]
             if self.with_mse_loss[i]:
-                loss += (
+                mse_loss = (
                     self.mse_criterion(
                         pred[:, : self.num_joints],
                         target[:, i, :, :H, :W],
@@ -85,17 +88,20 @@ class AEMultiLoss(Loss):
                     )
                     * self.mse_loss_factor[i]
                 )
+                total_mse_loss += mse_loss
 
             if self.with_ae_loss[i]:
                 if self.tag_per_joint:
-                    loss += (
+                    push_loss, pull_loss = (
                         self.ae_criterion(pred[:, self.num_joints :], tag_ind[:, i])
                         * self.ae_loss_factor[i]
                     )
                 else:
-                    loss += (
+                    push_loss, pull_loss = (
                         self.ae_criterion(pred[:, self.num_joints], tag_ind[:, i])
                         * self.ae_loss_factor[i]
                     )
+                total_push_loss += push_loss
+                total_pull_loss += pull_loss
 
-        return loss
+        return ops.stack([total_mse_loss, total_push_loss, total_pull_loss])
