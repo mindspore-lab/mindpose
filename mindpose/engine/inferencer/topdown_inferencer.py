@@ -1,6 +1,8 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import mindspore as ms
+import mindspore.nn as nn
+import numpy as np
 from mindspore import Tensor
 from mindspore.dataset import Dataset
 from tqdm import tqdm
@@ -43,6 +45,23 @@ class TopDownHeatMapInferencer(Inferencer):
         if self.decoder is None and self._inference_cfg["hflip_tta"]:
             raise ValueError("Decoder must be provided for flip TTA")
 
+        if (
+            self._inference_cfg["hflip_tta"]
+            and not self._inference_cfg["has_heatmap_output"]
+        ):
+            raise ValueError("flip TTA need heatmap output.")
+
+        if self._inference_cfg["hflip_tta"]:
+            self._multi_run_net = _MultiRunNet(
+                self.net,
+                self.decoder,
+                self._inference_cfg["flip_index"],
+                shift_heatmap=self._inference_cfg["shift_heatmap"],
+            )
+            self._multi_run_net.set_train(False)
+        else:
+            self._multi_run_net = None
+
     def load_inference_cfg(self) -> Dict[str, Any]:
         """Loading the inference config, where the returned config must be a dictionary
         which stores the configuration of the engine, such as the using TTA, etc.
@@ -55,10 +74,10 @@ class TopDownHeatMapInferencer(Inferencer):
         inference_cfg["has_heatmap_output"] = self.config["has_heatmap_output"]
         inference_cfg["hflip_tta"] = self.config["hflip_tta"]
         inference_cfg["shift_heatmap"] = self.config["shift_heatmap"]
-        inference_cfg["flip_pairs"] = self.config["flip_pairs"]
 
-        if inference_cfg["hflip_tta"] and not inference_cfg["has_heatmap_output"]:
-            raise ValueError("flip TTA need heatmap output.")
+        flip_index = np.array(self.config["flip_pairs"])[:, ::-1].flatten()
+        flip_index = np.insert(flip_index, 0, 0)
+        inference_cfg["flip_index"] = flip_index
 
         return inference_cfg
 
@@ -86,31 +105,25 @@ class TopDownHeatMapInferencer(Inferencer):
             total=dataset.get_dataset_size(),
             disable=not self.progress_bar,
         ):
-            if self._inference_cfg["has_heatmap_output"]:
-                (preds, boxes), heatmap = self.net(
+            if self._inference_cfg["hflip_tta"]:
+                preds, boxes = self._multi_run_net(
                     data["image"], data["center"], data["scale"], data["bbox_scores"]
                 )
             else:
-                preds, boxes = self.net(
-                    data["image"], data["center"], data["scale"], data["bbox_scores"]
-                )
-
-            if self._inference_cfg["hflip_tta"]:
-                flipped_image = ms.numpy.flip(data["image"], axis=3)
-                _, flipped_heatmap = self.net(
-                    flipped_image, data["center"], data["scale"], data["bbox_scores"]
-                )
-                flipped_heatmap = _flip_back(
-                    flipped_heatmap, self._inference_cfg["flip_pairs"]
-                )
-
-                if self._inference_cfg["shift_heatmap"]:
-                    flipped_heatmap[:, :, :, 1:] = flipped_heatmap[:, :, :, :-1]
-
-                heatmap = (heatmap + flipped_heatmap) * 0.5
-                preds, boxes = self.decoder(
-                    heatmap, data["center"], data["scale"], data["bbox_scores"]
-                )
+                if self._inference_cfg["has_heatmap_output"]:
+                    (preds, boxes), _ = self.net(
+                        data["image"],
+                        data["center"],
+                        data["scale"],
+                        data["bbox_scores"],
+                    )
+                else:
+                    preds, boxes = self.net(
+                        data["image"],
+                        data["center"],
+                        data["scale"],
+                        data["bbox_scores"],
+                    )
 
             preds = preds.asnumpy()
             boxes = boxes.asnumpy()
@@ -130,16 +143,45 @@ class TopDownHeatMapInferencer(Inferencer):
         return outputs
 
 
-@ms.ms_function
-def _flip_back(flipped_heatmap: Tensor, flip_pairs: List[Tuple[int, int]]) -> Tensor:
-    """Flip the flipped heatmaps back to the original form."""
-    flipped_heatmap_back = flipped_heatmap.copy()
+class _MultiRunNet(nn.Cell):
+    """Running the inference for multiple times with horizontal TTA."""
 
-    # Swap left-right parts
-    for left, right in flip_pairs:
-        flipped_heatmap_back[:, left, ...] = flipped_heatmap[:, right, ...]
-        flipped_heatmap_back[:, right, ...] = flipped_heatmap[:, left, ...]
+    def __init__(
+        self,
+        net: Inferencer,
+        decoder: TopDownHeatMapDecoder,
+        flip_index: Union[np.ndarray, Tensor],
+        shift_heatmap: bool = False,
+    ) -> None:
+        super().__init__()
+        self.net = net
+        self.decoder = decoder
+        self.shift_heatmap = shift_heatmap
+        if isinstance(flip_index, np.ndarray):
+            self.flip_index = Tensor(flip_index)
+        else:
+            self.flip_index = flip_index
 
-    # Flip horizontally
-    flipped_heatmap_back = flipped_heatmap_back[..., ::-1]
-    return flipped_heatmap_back
+    def construct(
+        self, image: Tensor, center: Tensor, scale: Tensor, score: Tensor
+    ) -> Tuple[Tensor, Tensor]:
+        _, heatmap = self.net(image, center, scale, score)
+        flipped_image = ms.numpy.flip(image, axis=3)
+        _, flipped_heatmap = self.net(flipped_image, center, scale, score)
+        flipped_heatmap = self._flip_back(flipped_heatmap)
+
+        if self.shift_heatmap:
+            flipped_heatmap = self._shift_heatmap(flipped_heatmap)
+
+        final_heatmap = (heatmap + flipped_heatmap) * 0.5
+        preds = self.decoder(final_heatmap, center, scale, score)
+        return preds
+
+    def _flip_back(self, flipped_heatmap: Tensor) -> Tensor:
+        flipped_heatmap_back = flipped_heatmap[:, self.flip_index, ...]
+        flipped_heatmap_back = flipped_heatmap_back[..., ::-1]
+        return flipped_heatmap_back
+
+    def _shift_heatmap(self, heatmap: Tensor) -> Tensor:
+        heatmap[..., 1:] = heatmap[..., :-1]
+        return heatmap

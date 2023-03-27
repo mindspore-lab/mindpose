@@ -19,7 +19,7 @@ def match_by_tag(
     vis_thr: float = 0.1,
     tag_thr: float = 1,
     ignore_too_much: bool = False,
-    use_detection_val: bool = True,
+    use_rounded_norm: bool = True,
 ) -> np.ndarray:
     """Perform the matching used in associative embedding
 
@@ -32,7 +32,7 @@ def match_by_tag(
         tag_thr: The tag threshold. Default: 1.
         ignore_too_much: Drop the matching if the number of instance is larger than M.
             Default: False
-        use_detection_val: Use the heatmap value for grouping. Default: True
+        use_rounded_norm: Use rounded norm during grouping. Default: True
 
     Returns:
         The matched result, in shape [M, K, 4]. Return empty array if none is matched.
@@ -81,8 +81,8 @@ def match_by_tag(
             diff_normed = np.linalg.norm(diff, ord=2, axis=2)
             diff_saved = diff_normed.copy()
 
-            if use_detection_val:
-                diff_normed = np.round(diff_normed) * 100 - joints[:, 2:3]
+            if use_rounded_norm:
+                diff_normed = np.round(diff_normed)
 
             num_added = diff.shape[0]
             num_grouped = diff.shape[1]

@@ -66,6 +66,8 @@ class SimpleBaselineHead(Head):
             padding = 1
         elif deconv_kernel == 2:
             padding = 0
+        else:
+            raise ValueError("Invalid deconv_kernel.")
         return padding
 
     def make_deconv_layer(self) -> nn.SequentialCell:

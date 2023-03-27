@@ -101,19 +101,19 @@ class TopDownHeatMapDecoder(Decoder):
         heatmap = ops.reshape(heatmap, (batch_size, num_joints, -1))
         idx, maxvals = ops.max(heatmap, axis=2, keep_dims=True)
 
-        # a bolean mask storing the location of the maximum value
-        maskvals_mask = ops.zeros(heatmap.shape, ms.bool_)
-        maskvals_mask = ops.tensor_scatter_elements(
-            maskvals_mask, idx, ops.ones(idx.shape, ms.bool_), axis=2
+        # a boolean mask storing the location of the maximum value
+        maxvals_mask = ops.zeros(heatmap.shape, ms.bool_)
+        maxvals_mask = ops.tensor_scatter_elements(
+            maxvals_mask, idx, ops.ones(idx.shape, ms.bool_), axis=2
         )
-        maskvals_mask = ops.reshape(maskvals_mask, (batch_size, num_joints, -1, width))
+        maxvals_mask = ops.reshape(maxvals_mask, (batch_size, num_joints, -1, width))
 
         preds = ops.cast(ops.tile(idx, (1, 1, 2)), ms.float32)
 
         preds[:, :, 0] = preds[:, :, 0] % width
         preds[:, :, 1] = ops.floor((preds[:, :, 1]) / width)
 
-        return preds, maxvals, maskvals_mask
+        return preds, maxvals, maxvals_mask
 
     def _shift_coordinate(
         self, coords: Tensor, heatmap: Tensor, maxvals_mask: Tensor
