@@ -55,7 +55,7 @@ in_channels: 3
 backbone_name: "resnet152"
 backbone_setting: {}
 backbone_pretrained: True
-backbone_ckpt_url: "https://download.mindspore.cn/toolkits/mindcv/resnet/resnet152_224.ckpt"
+backbone_ckpt_url: "https://download.mindspore.cn/toolkits/mindcv/resnet/resnet152-33ed9fdf.ckpt"
 neck_name: ""
 neck_out_channels: null
 neck_setting: {}
