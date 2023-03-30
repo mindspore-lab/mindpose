@@ -58,10 +58,11 @@ def visual_gt_heatmap(args: Namespace) -> None:
 
         img = data["image"][0][..., ::-1]  # RGB to BGR
         heatmap = data["target"][0] * 255
-        _, K, H, W = heatmap.shape
+
         # in case of muli-resolution heatmap, choose the largest one
         if len(heatmap.shape) == 4:
             heatmap = heatmap[-1]
+        K, H, W = heatmap.shape
         heatmap = np.sum(heatmap, axis=0)
         heatmap = np.clip(heatmap, 0, 255).astype(np.uint8)
         heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)

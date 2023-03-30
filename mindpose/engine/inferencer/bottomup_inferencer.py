@@ -148,24 +148,24 @@ class BottomUpHeatMapAEInferencer(Inferencer):
         tagging_heatmap: Tensor,
     ) -> Tuple[List[np.ndarray], List[List[float]]]:
         """Output the final result by post-processings."""
-        grouped = self._match(val_k, tag_k, ind_k)
+        keypoints = self._match(val_k, tag_k, ind_k)
 
         # calculate the score for each instance
         scores = list()
-        for x in grouped:
+        for x in keypoints:
             scores.append([y[:, 2].mean() for y in x])
 
         # add missing joints
         if self._inference_cfg["refine_missing_joint"]:
             heatmap = heatmap.asnumpy()
             tagging_heatmap = tagging_heatmap.asnumpy()
-            for i in range(len(grouped)):
-                for j in range(len(grouped[i])):
-                    grouped[i][j] = self._refine_missing(
-                        heatmap[i], tagging_heatmap[i], grouped[i][j]
+            for i in range(len(keypoints)):
+                for j in range(len(keypoints[i])):
+                    keypoints[i][j] = self._refine_missing(
+                        heatmap[i], tagging_heatmap[i], keypoints[i][j]
                     )
 
-        return grouped, scores
+        return keypoints, scores
 
     def _match(self, val_k: Tensor, tag_k: Tensor, ind_k: Tensor) -> List[np.ndarray]:
         """Match the result by tag."""
@@ -190,61 +190,63 @@ class BottomUpHeatMapAEInferencer(Inferencer):
         self,
         heatmap: np.ndarray,
         tagging_heatmap: np.ndarray,
-        grouped: List[np.ndarray],
+        keypoints: List[np.ndarray],
     ) -> List[np.ndarray]:
+        """
+        heatmap: K x H x W
+        tagging_heatmap: K x H x W x L
+        keypoints: K x 4
+        """
+        K, H, W = heatmap.shape
+
+        # calculate the mean tag for single instance
         tags = []
-        for i in range(grouped.shape[0]):
-            if grouped[i, 2] > 0:
-                # save tagging_heatmap value of detected keypoint
-                x, y = grouped[i][:2].astype(np.int32)
+        location = keypoints[:, :2].astype(np.int32)
+        for i in range(K):
+            if keypoints[i, 2] > 0:
+                x, y = location[i]
                 tags.append(tagging_heatmap[i, y, x])
+        mean_tag = np.mean(tags, axis=0)
 
-        # mean tagging_heatmap of current detected people
-        prev_tag = np.mean(tags, axis=0)
-        ans = []
+        # calculate the L2-distance of the tagging heatmap and mean tag
+        dist = tagging_heatmap - mean_tag[None, None, None, :]
+        dist = np.linalg.norm(dist, axis=3)
+        dist = np.round(dist)
 
-        for i in range(grouped.shape[0]):
-            # score of joints i at all position
-            tmp = heatmap[i, :, :]
-            # distance of all tagging_heatmap values with mean tagging_heatmap
-            # of current detected people
-            tt = ((tagging_heatmap[i, :, :] - prev_tag[None, None, :]) ** 2).sum(
-                axis=2
-            ) ** 0.5
-            tmp2 = tmp - np.round(tt)
+        # find the location maximize the heatmap - L2 distance of the tag
+        dist_2 = (heatmap - dist).reshape(K, -1)
+        max_loc = np.argmax(dist_2, axis=1)
+        ys, xs = np.unravel_index(max_loc, (H, W))
+        ys_int, xs_int = ys.copy(), xs.copy()
+        xs = xs.astype(np.float32)
+        ys = ys.astype(np.float32)
+        # offset by 0.5
+        xs += 0.5
+        ys += 0.5
 
-            # find maximum position
-            y, x = np.unravel_index(np.argmax(tmp2), tmp.shape)
-            xx = x
-            yy = y
-            # detection score at maximum position
-            val = tmp[y, x]
-            # offset by 0.5
-            x += 0.5
-            y += 0.5
+        # shifted by +- 0.25
+        for i in range(heatmap.shape[0]):
+            xx = xs_int[i]
+            yy = ys_int[i]
 
-            # add a quarter offset
-            if tmp[yy, min(xx + 1, tmp.shape[1] - 1)] > tmp[yy, max(xx - 1, 0)]:
-                x += 0.25
+            if heatmap[i, yy, min(xx + 1, W - 1)] > heatmap[i, yy, max(xx - 1, 0)]:
+                xs[i] += 0.25
             else:
-                x -= 0.25
+                xs[i] -= 0.25
 
-            if tmp[min(yy + 1, tmp.shape[0] - 1), xx] > tmp[max(0, yy - 1), xx]:
-                y += 0.25
+            if heatmap[i, min(yy + 1, H - 1), xx] > heatmap[i, max(0, yy - 1), xx]:
+                ys[i] += 0.25
             else:
-                y -= 0.25
+                ys[i] -= 0.25
 
-            ans.append((x, y, val))
-        ans = np.array(ans)
+        # add keypoint if it is not detected
+        vals = heatmap[np.arange(K), ys_int, xs_int]
+        keypoints_full = np.stack((xs, ys, vals), axis=1)
+        for i in range(K):
+            if keypoints_full[i, 2] > 0 and keypoints[i, 2] == 0:
+                keypoints[i, :3] = keypoints_full[i]
 
-        if ans is not None:
-            for i in range(heatmap.shape[0]):
-                # add keypoint if it is not detected
-                if ans[i, 2] > 0 and grouped[i, 2] == 0:
-                    grouped[i, :2] = ans[i, :2]
-                    grouped[i, 2] = ans[i, 2]
-
-        return grouped
+        return keypoints
 
 
 class _MultiRunNet(nn.Cell):
@@ -252,7 +254,7 @@ class _MultiRunNet(nn.Cell):
 
     def __init__(
         self,
-        net: Inferencer,
+        net: EvalNet,
         decoder: BottomUpHeatMapAEDecoder,
         flip_index: Union[np.ndarray, Tensor],
     ) -> None:
