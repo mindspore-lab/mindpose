@@ -15,6 +15,7 @@ __all__ = [
     "BottomUpRandomAffine",
     "BottomUpGenerateTarget",
     "BottomUpRescale",
+    "BottomUpResize",
     "BottomUpPad",
 ]
 
@@ -201,6 +202,99 @@ class BottomUpRescale(BottomUpTransform):
 
         transformed_state = dict()
         transformed_state["image"] = image
+        transformed_state["center"] = center
+        transformed_state["scale"] = scale
+        transformed_state["image_shape"] = target_size
+        return transformed_state
+
+
+@register("transform", extra_name="bottomup_resize")
+class BottomUpResize(BottomUpTransform):
+    """Resize the image without change the aspect ratio. The length of the short side
+    of the image will be equal to the input `size`.
+
+    Args:
+        is_train: Whether the transformation is for training/testing. Default: True
+        config: Method-specific configuration. Default: None
+        size: The target size of the short side of the image. Default: 512
+        base_length: The minimum size the image. Default: 64
+    """
+
+    def __init__(
+        self,
+        is_train: bool = True,
+        config: Optional[Dict[str, Any]] = None,
+        size: int = 512,
+        base_length: int = 64,
+    ) -> None:
+        super().__init__(is_train, config)
+        self.size = size
+        self.base_length = base_length
+
+    @staticmethod
+    def _ceil_to_base_length(x: int, base_length: int) -> int:
+        return int(np.ceil(x / base_length)) * base_length
+
+    def _get_new_size(
+        self,
+        image_size: Tuple[int, int],
+        size: int,
+        base_length: int = 64,
+        pixel_std: float = 200.0,
+    ) -> Tuple[Tuple[int, int], np.ndarray, np.ndarray]:
+        w, h = image_size
+
+        min_size = self._ceil_to_base_length(size, base_length)
+
+        if w < h:
+            target_w = min_size
+            target_h = self._ceil_to_base_length(min_size / w * h, base_length)
+            scale_w = w / pixel_std
+            scale_h = target_h / target_w * w / pixel_std
+        else:
+            target_h = min_size
+            target_w = self._ceil_to_base_length(min_size / h * w, base_length)
+            scale_h = h / pixel_std
+            scale_w = target_w / target_h * h / pixel_std
+
+        center = np.array([round(w / 2), round(h / 2)])
+        scale = np.array([scale_w, scale_h])
+
+        return (target_w, target_h), center, scale
+
+    def transform(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Transform the state into the transformed state. state is a dictionay
+        storing the informaton of the image and labels, the returned states is
+        the updated dictionary storing the updated image and labels.
+
+        Args:
+            state: Stored information of image and labels
+
+        Returns:
+            Updated inforamtion of image and labels based on the transformation
+
+        Note:
+            | Required `keys` for transform: image
+            | Returned `keys` after transform: image, mask, center, scale, image_shape
+        """
+        image = state["image"]
+        height, width = image.shape[:2]
+
+        img_size = [width, height]
+        target_size, center, scale = self._get_new_size(
+            img_size,
+            self.size,
+            base_length=self.base_length,
+            pixel_std=self._transform_cfg["pixel_std"],
+        )
+
+        mat = get_affine_transform(center, scale, 0, target_size)
+        image = cv2.warpAffine(image, mat, target_size, flags=cv2.INTER_LINEAR)
+        mask = np.ones(image.shape[:2], dtype=np.uint8)
+
+        transformed_state = dict()
+        transformed_state["image"] = image
+        transformed_state["mask"] = mask
         transformed_state["center"] = center
         transformed_state["scale"] = scale
         transformed_state["image_shape"] = target_size

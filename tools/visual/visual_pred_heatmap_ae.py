@@ -68,15 +68,14 @@ def visual_pred_heatmap(args: Namespace) -> None:
 
     # create evaluation network
     decoder = create_decoder(args.decoder_name, **args.decoder_setting)
-    net = create_eval_network(net, decoder, output_raw=True)
+    net = create_eval_network(net, decoder, output_raw=False)
 
     for i, data in enumerate(dataset.create_dict_iterator(num_epochs=1)):
         # visualize the first 10 images only
         if i > 10:
             break
 
-        coordinate, raw_output = net(data["image"], data["mask"])
-        val_k, tag_k, ind_k = coordinate
+        val_k, tag_k, ind_k, heatmap, tag_heatmap = net(data["image"], data["mask"])
 
         img = data["image"].asnumpy()[0]
         std = np.array(args.normalize_std)
@@ -87,10 +86,6 @@ def visual_pred_heatmap(args: Namespace) -> None:
         img = np.transpose(img, (1, 2, 0))
         img = np.clip(img, 0, 255)
         img = img[..., ::-1].astype(np.uint8).copy()
-
-        # choose the largest resolution heatmap
-        heatmap = raw_output[-1][:, : args.num_joints]
-        tag_heatmap = raw_output[0][:, args.num_joints :]
 
         tag_mask = np.zeros(heatmap.shape[2:], dtype=np.uint8)
         group_mask = np.zeros(heatmap.shape[2:], dtype=np.uint8)

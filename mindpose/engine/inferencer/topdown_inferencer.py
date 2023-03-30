@@ -148,7 +148,7 @@ class _MultiRunNet(nn.Cell):
 
     def __init__(
         self,
-        net: Inferencer,
+        net: EvalNet,
         decoder: TopDownHeatMapDecoder,
         flip_index: Union[np.ndarray, Tensor],
         shift_heatmap: bool = False,

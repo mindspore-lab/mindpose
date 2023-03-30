@@ -132,6 +132,8 @@ class HigherHRNetHead(Head):
             padding = 1
         elif deconv_kernel == 2:
             padding = 0
+        else:
+            raise ValueError("Invalid deconv_kernel.")
         return padding
 
     def _make_deconv_layers(self) -> nn.CellList:
