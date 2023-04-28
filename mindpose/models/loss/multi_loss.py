@@ -20,9 +20,9 @@ class AEMultiLoss(Loss):
         mse_loss_factor: Weighting for MSE loss at each level. Default: [1.0, 1.0]
         ae_loss_factor: Weighting for Associative embedding loss at each level.
             Default: [0.001, 0.001]
-        with_mse_loss: Whether each level involves calculating MSE loss.
+        with_mse_loss: Whether to calculate MSE loss at each level.
             Default: [True, False]
-        with_ae_loss: Whether each level involves calculating AE loss.
+        with_ae_loss: Whether to calculate AE loss at each level.
             Default: [True, False]
         tag_per_joint: Whether each of the joint has its own coordinate encoding.
             Default: True

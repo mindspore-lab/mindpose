@@ -66,6 +66,7 @@ _BOTTOMUP_VAL_FINAL_COLUMN_NAMES = [
     "image_shape",
 ]
 
+# TODO: Looks ugly, need refactor
 COLUMN_MAP = dict(
     coco_topdown=dict(train=_TOPDOWN_TRAIN_COLUMN_NAMES, val=_TOPDOWN_VAL_COLUMN_NAMES),
     topdown=dict(train=_TOPDOWN_TRAIN_COLUMN_NAMES, val=_TOPDOWN_VAL_COLUMN_NAMES),
@@ -73,6 +74,7 @@ COLUMN_MAP = dict(
         train=_BOTTOMUP_TRAIN_COLUMN_NAMES, val=_BOTTOMUP_VAL_COLUMN_NAMES
     ),
     bottomup=dict(train=_BOTTOMUP_TRAIN_COLUMN_NAMES, val=_BOTTOMUP_VAL_COLUMN_NAMES),
+    imagefolder_bottomup=dict(val=_BOTTOMUP_VAL_COLUMN_NAMES),
 )
 
 FINAL_COLUMN_MAP = dict(
@@ -82,4 +84,5 @@ FINAL_COLUMN_MAP = dict(
     bottomup=dict(
         train=_BOTTOMUP_TRAIN_FINAL_COLUMN_NAMES, val=_BOTTOMUP_VAL_FINAL_COLUMN_NAMES
     ),
+    imagefolder_bottomup=dict(val=_BOTTOMUP_VAL_FINAL_COLUMN_NAMES),
 )

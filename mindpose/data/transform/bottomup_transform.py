@@ -383,11 +383,6 @@ class BottomUpRandomAffine(BottomUpTransform):
 
         image_size = self._transform_cfg["image_size"]
         heatmap_sizes = self._transform_cfg["heatmap_sizes"]
-        num_levels = len(heatmap_sizes)
-
-        # expand the mask and keypoints for num_levels
-        mask = [mask.copy() for _ in range(num_levels)]
-        keypoints = [keypoints.copy() for _ in range(num_levels)]
 
         height, width = image.shape[:2]
 
@@ -415,6 +410,7 @@ class BottomUpRandomAffine(BottomUpTransform):
 
         transformed_state = dict()
 
+        mask_list = list()
         for i, heatmap_size in enumerate(heatmap_sizes):
             # calculate the mat for heatmap
             scale = self._get_scale(img_scale, heatmap_size)
@@ -427,14 +423,15 @@ class BottomUpRandomAffine(BottomUpTransform):
             )
 
             # warp masks and keypoints
-            mask[i] = cv2.warpAffine(
+            warped_mask = cv2.warpAffine(
                 mask[i],
                 mat,
                 (int(heatmap_size[0]), int(heatmap_size[1])),
                 flags=cv2.INTER_NEAREST,
             )
+            mask_list.append(warped_mask)
 
-            keypoints[i][:, :, 0:2] = warp_affine_joints(keypoints[i][:, :, 0:2], mat)
+            keypoints[i, :, :, 0:2] = warp_affine_joints(keypoints[i, :, :, 0:2], mat)
 
         # calculate the mat for image
         scale = self._get_scale(img_scale, image_size)
@@ -454,7 +451,7 @@ class BottomUpRandomAffine(BottomUpTransform):
             flags=cv2.INTER_LINEAR,
         )
 
-        mask = pad_to_same(mask)
+        mask = pad_to_same(mask_list)
 
         transformed_state["image"] = image
         transformed_state["mask"] = mask
@@ -556,9 +553,6 @@ class BottomUpGenerateTarget(BottomUpTransform):
         x = np.arange(0, size, 1, np.float32)
         y = x[:, None]
         x0, y0 = size // 2, size // 2
-        # The gaussian is not normalized,
-        # we want the center value to equal 1
-        g = np.exp(-((x - x0) ** 2 + (y - y0) ** 2) / (2 * self.sigma**2))
 
         for m, single_keypoints in enumerate(keypoints):
             for idx, pt in enumerate(single_keypoints):
@@ -570,6 +564,12 @@ class BottomUpGenerateTarget(BottomUpTransform):
                     br = [int(mu_x + tmp_size + 1), int(mu_y + tmp_size + 1)]
                     if ul[0] >= W or ul[1] >= H or br[0] < 0 or br[1] < 0:
                         continue
+
+                    x0_p = x0 + pt[0] - mu_x
+                    y0_p = y0 + pt[1] - mu_y
+                    g = np.exp(
+                        -((x - x0_p) ** 2 + (y - y0_p) ** 2) / (2 * self.sigma**2)
+                    )
 
                     # Usable gaussian range
                     g_x = max(0, -ul[0]), min(br[0], W) - ul[0]

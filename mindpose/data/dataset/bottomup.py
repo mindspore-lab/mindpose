@@ -34,7 +34,7 @@ class BottomUpDataset:
     def __init__(
         self,
         image_root: str,
-        annotation_file: str,
+        annotation_file: Optional[str] = None,
         is_train: bool = False,
         num_joints: int = 17,
         config: Optional[Dict[str, Any]] = None,
@@ -61,10 +61,11 @@ class BottomUpDataset:
         """Loading the dataset, where the returned record should contain the following key
 
         Keys:
-            | image_file: Path of the image file
-            | keypoints: Keypoints in (x, y, visibility)
-            | bbox: Bounding box coordinate (x, y, w, h)
-            | mask_info: The mask info of crowed or zero keypoints instances
+            | image_file: Path of the image file.
+            | keypoints (For training only): Keypoints in (x, y, visibility).
+            | boxes (For training only): Bounding box coordinate (x0, y0), (x1, y1).
+            | mask_info (For training only): The mask info of crowed or zero keypoints
+                instances.
 
         Returns:
             A list of records of groundtruth or predictions
@@ -97,5 +98,5 @@ class BottomUpDataset:
             np.float32(0),  # placeholder for center
             np.float32(0),  # placeholder for scale
             record["image_file"],
-            np.asarray(record["mask_info"]["shape"], dtype=np.int32),
+            np.int32(0),  # placeholder for image_shape
         )

@@ -347,8 +347,8 @@ class TopDownGenerateTarget(TopDownTransform):
             target_weight[joint_id] = keypoints[joint_id, 2]
 
             feat_stride = image_size / np.array([W, H])
-            mu_x = int(keypoints[joint_id][0] / feat_stride[0] + 0.5)
-            mu_y = int(keypoints[joint_id][1] / feat_stride[1] + 0.5)
+            mu_x = round(keypoints[joint_id][0] / feat_stride[0])
+            mu_y = round(keypoints[joint_id][1] / feat_stride[1])
             # Check that any part of the gaussian is in-bounds
             ul = [int(mu_x - tmp_size), int(mu_y - tmp_size)]
             br = [int(mu_x + tmp_size + 1), int(mu_y + tmp_size + 1)]
