@@ -26,8 +26,8 @@ def eval(args: Namespace) -> None:
     # set up mindspore running mode
     ms.set_context(mode=args.mode)
 
-    # create validation dataset
-    val_dataset = create_dataset(
+    # create dataset
+    dataset = create_dataset(
         args.val_root,
         args.val_label,
         dataset_format=args.dataset_format,
@@ -39,8 +39,8 @@ def eval(args: Namespace) -> None:
         config=args.dataset_setting,
     )
 
-    val_dataset = create_pipeline(
-        val_dataset,
+    dataset = create_pipeline(
+        dataset,
         transforms=args.val_transforms,
         method=args.pipeline_method,
         batch_size=args.batch_size,
@@ -93,7 +93,7 @@ def eval(args: Namespace) -> None:
     )
 
     # inference on the whole dataset
-    outputs = inferencer(dataset=val_dataset)
+    outputs = inferencer(dataset=dataset)
 
     # perform evaluation
     result = evaluator(outputs)

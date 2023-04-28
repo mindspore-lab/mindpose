@@ -1,6 +1,7 @@
 import os
 from typing import Any, Dict, List, Tuple
 
+import cv2
 import numpy as np
 import pycocotools.mask
 
@@ -43,16 +44,20 @@ class COCOBottomUpDataset(BottomUpDataset):
             Dataset configurations
         """
         dataset_cfg = dict()
+        dataset_cfg["sigma"] = float(self.config["sigma"])
+        dataset_cfg["heatmap_sizes"] = self.config["heatmap_sizes"]
+        dataset_cfg["expand_mask"] = self.config["expand_mask"]
         return dataset_cfg
 
     def load_dataset(self) -> List[Dict[str, Any]]:
         """Loading the dataset, where the returned record should contain the following key
 
         Keys:
-            | image_file: Path of the image file
-            | keypoints: Keypoints in (x, y, visibility)
-            | boxes: Bounding box coordinate (x0, y0), (x1, y1)
-            | mask_info: The mask info of crowed or zero keypoints instances
+            | image_file: Path of the image file.
+            | keypoints (For training only): Keypoints in (x, y, visibility).
+            | boxes (For training only): Bounding box coordinate (x0, y0), (x1, y1).
+            | mask_info (For training only): The mask info of crowed or zero keypoints
+                instances.
 
         Returns:
             A list of records of groundtruth or predictions
@@ -118,6 +123,12 @@ class COCOBottomUpDataset(BottomUpDataset):
             return np.zeros((1, self.num_joints, 3))
         keypoints = [np.array(x["keypoints"]).reshape((-1, 3)) for x in annos]
         keypoints = np.stack(keypoints, axis=0)
+
+        # expand the keypoints by number of resolutions
+        heatmap_sizes = self._dataset_cfg["heatmap_sizes"]
+        num_levels = len(heatmap_sizes)
+        keypoints = np.tile(keypoints[None, ...], (num_levels, 1, 1, 1))
+
         return keypoints
 
     def _get_boxes(self, annos: List[Dict[str, Any]]) -> np.ndarray:
@@ -157,6 +168,20 @@ class COCOBottomUpDataset(BottomUpDataset):
                         m += pycocotools.mask.decode(rle)
 
         m = m < 0.5
+
+        # expand the mask by number of resolutions
+        heatmap_sizes = self._dataset_cfg["heatmap_sizes"]
+        num_levels = len(heatmap_sizes)
+        m = np.tile(m[None, ...], (num_levels, 1, 1))
+
+        if self._dataset_cfg["expand_mask"]:
+            sigma = self._dataset_cfg["sigma"]
+            for i in range(num_levels):
+                # 3-sigma rule
+                size = int(3 * sigma * (2 ** (num_levels - i)))
+                kernel = np.zeros((2 * size + 1, 2 * size + 1), dtype=np.uint8)
+                cv2.circle(kernel, (size, size), size, 1, -1)
+                m[i] = cv2.erode(m[i].astype(np.uint8), kernel).astype(bool)
 
         encoded_m = np.packbits(m)
 

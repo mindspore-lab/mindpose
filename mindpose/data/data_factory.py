@@ -15,7 +15,7 @@ __all__ = ["create_dataset", "create_pipeline"]
 
 def create_dataset(
     image_root: str,
-    annotation_file: str,
+    annotation_file: Optional[str] = None,
     dataset_format: str = "coco_topdown",
     is_train: bool = True,
     device_num: Optional[int] = None,
@@ -28,7 +28,7 @@ def create_dataset(
 
     Args:
         image_root: The path of the directory storing images
-        annotation_file: The path of the annotation file
+        annotation_file: The path of the annotation file. Default: None
         dataset_format: The dataset format. Different format yield
             different final output. Default: `coco_topdown`
         is_train: Wether this dataset is used for training/testing: Default: True
